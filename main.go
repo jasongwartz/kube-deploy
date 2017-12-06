@@ -1,11 +1,12 @@
 package main
 
 import (
+	"bufio"
+	// "flag"
 	"fmt"
 	"os"
-	"bufio"
 	"os/user"
-	"flag"
+	"github.com/simonleung8/flags"
 )
 
 var userConfig userConfigMap
@@ -33,20 +34,49 @@ func main() {
 		%s
 		`, repoConfig.Application.Name, repoConfig.GitBranch, repoConfig.BuildID, repoConfig.ImageFullPath)
 
-	fmt.Print("\n\n=> Press 'y' if this is correct, anything else to exit.\n>>>  ")
-	confirm, _ := reader.ReadString('\n')
-	if confirm != "y\n" && confirm != "Y" {
-		fmt.Println("I'm sorry to say goodbye, I thought we really had something.")
-		os.Exit(1)
-	}
+	// fmt.Print("\n\n=> Press 'y' if this is correct, anything else to exit.\n>>>  ")
+	// confirm, _ := reader.ReadString('\n')
+	// if confirm != "y\n" && confirm != "Y" {
+	// 	fmt.Println("I'm sorry to say goodbye, I thought we really had something.")
+	// 	os.Exit(1)
+	// }
 
-	makeBuild()
+	// args has to have at least length 2, since the first element is the executable name
+	if len(args) >= 2 {
+		fmt.Printf("\n=> You've chosen the action '%s'. Proceeding...\n\n", args[1])
+		
+		switch c := args[1]; c {
+		case "build":
+			makeAndPushBuild()
+		case "make":
+			makeAndPushBuild()
+		case "test":
+			makeAndTestBuild()
+	
+		// case "list-deployments": kubeListDeployments()
+		case "list-tags":
+			dockerListTags()
+			// case "lock": writeLockFile()
+			// case "lock-all": WriteAllLockFiles()
+			// default: showHelp()
+		}	
+	} else {
+		fmt.Println("You'll need to add a command.")
+	}
 }
 
-var flags map[string]*bool
+var args []string
+var runFlags flags.FlagContext
 func parseFlags() {
-	flags = make(map[string]*bool)
-	dirtyWorkingDirectoryOverride := flag.Bool("override-dirty-workdir", false, "Forces a build even if the git working directory is dirty.")
-	flag.Parse()
-	flags["dirtyWorkingDirectoryOverride"] = dirtyWorkingDirectoryOverride
+
+	runFlags = flags.New()
+	runFlags.NewBoolFlag("debug", "", "Print extra fun information.")
+	runFlags.NewBoolFlag("override-dirty-workdir", "", "Forces a build even if the git working directory is dirty.")
+	runFlags.NewBoolFlag("force", "", "Unwisely bypasses the sanity checks which you really need. Even you.")
+
+	if err := runFlags.Parse(os.Args...); err != nil {
+		fmt.Println("Failed to parse command line flags. Sorry...")
+		os.Exit(1)
+	}
+	args = runFlags.Args()
 }

@@ -11,7 +11,7 @@ Welcome to kube-deploy, a deployment tool for Kubernetes!
 
 ### Rolling Out
     - 'list-deployments'    Prints a list of recent Kubernetes deployments for the current branch of this project.
-    - 'list-tags'           Prints a list of available docker tags in the remote repository that match the current git branch.
+    - 'list-tags'           Prints a list of available docker tags in the remote repository that match the current git branch (Google Cloud Registry only).
     - 'lock'                Writes the lockfile (prevents others from starting a deployment) for this project without starting a deployment.
     - 'lock-all'            Writes the lockfile (prevents others from starting a deployment) for ALL projects.
     - 'rollback'            With no args, immediately rolls back to the previous release. A Docker tag may optionally be provided, in which case the deployment will be rolled back to the specified tag (with no canary points).
@@ -31,6 +31,29 @@ kubectl patch deployment thumbs --namespace=development -p "{\"spec\":{\"templat
 kubectl patch deployment mycujoo-api --namespace=production -p "{\"spec\":{\"template\":{\"metadata\":{\"labels\":{\"rolling-restart\":\"`date +'%s'`\"}}}}}" && kubectl rollout status --namespace=production deployment/mycujoo-api
 
 ## Building and Pushing
+
+### Running Tests
+
+The Docker image will be started using "detached" mode, the `-d` flag.
+
+An example test set configuration looks like this:
+
+    tests:
+    - name: Test container can start
+      dockerArgs:
+      commands:
+      - docker ps | grep 'test'
+    - name: Test that container can respond to ping
+      dockerArgs: -p 3000:3000 -e ENVIRONMENT=development
+      commands:
+      - curl --quiet localhost:3000
+    - name: Run the test script
+      dockerArgs: -p 3000:3000
+      commands:
+      - sh test.sh
+      - npm test
+
+The commands can be anything that is runnable in your local shell, including `docker-compose` to set up a more complex test environment.
 
 ### Pushing to Remote
 

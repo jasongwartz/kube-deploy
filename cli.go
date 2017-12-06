@@ -11,36 +11,36 @@ import (
 )
 
 func getCommandOutput(cmdName string, cmdArgs string) (string) {
-	output, _ := runCommand(cmdName, cmdArgs, false)
+	output, _ := runCommand(cmdName, cmdArgs, false, false)
 	return output
 }
 
 func getCommandExitCode(cmdName string, cmdArgs string) (int) {
-	_, exit := runCommand(cmdName, cmdArgs, false)
+	_, exit := runCommand(cmdName, cmdArgs, false, true) // Sends quiet signal
 	return exit
 }
 
 func getCommandOutputAndExitCode(cmdName string, cmdArgs string) (string, int) {
-	output, exit := runCommand(cmdName, cmdArgs, false)
+	output, exit := runCommand(cmdName, cmdArgs, false, false)
 	return output, exit
 }
 
 func streamAndGetCommandOutput(cmdName string, cmdArgs string) (string) {
-	output, _ := runCommand(cmdName, cmdArgs, true)
+	output, _ := runCommand(cmdName, cmdArgs, true, false)
 	return output
 }
 func streamAndGetCommandOutputAndExitCode(cmdName string, cmdArgs string) (string, int) {
-	output, exit := runCommand(cmdName, cmdArgs, true)
+	output, exit := runCommand(cmdName, cmdArgs, true, false)
 	return output, exit
 }
 
 func streamAndGetCommandExitCode(cmdName string, cmdArgs string) (int) {
-	_, exit := runCommand(cmdName, cmdArgs, true)
+	_, exit := runCommand(cmdName, cmdArgs, true, false)
 	return exit
 }
 
 
-func runCommand(cmdName string, cmdArgs string, stream bool) (string, int) {
+func runCommand(cmdName string, cmdArgs string, stream bool, quiet bool) (string, int) {
 
 	var (
 		cmdOut []string
@@ -88,22 +88,24 @@ func runCommand(cmdName string, cmdArgs string, stream bool) (string, int) {
 				exitCode = status.ExitStatus()
 			}
 		}
-		fmt.Fprint(
-			os.Stderr,
-			"=> There was an error while running command: `",
-			cmdName, " ",
-			strings.Trim(fmt.Sprint(cmdArgs), "[]"), 
-			"`, resulting in the error: ",
-			err,
-			"\n")
-
-		if len(cmdOut) > 0 {
-			fmt.Println("\n\t| ", strings.Join(cmdOut, "\n\t| "))
+		if ! quiet {
+			fmt.Fprint(
+				os.Stderr,
+				"=> There was an error while running command: `",
+				cmdName, " ",
+				strings.Trim(fmt.Sprint(cmdArgs), "[]"), 
+				"`, resulting in the error: ",
+				err,
+				"\n")
+	
+			if len(cmdOut) > 0 {
+				fmt.Println("\n\t| ", strings.Join(cmdOut, "\n\t| "))
+			}
+			if len(cmdError) > 0 {
+				fmt.Println("\n\t| ", strings.Join(cmdError, "\n\t| "))			
+			}
+			fmt.Printf("\n")	
 		}
-		if len(cmdError) > 0 {
-			fmt.Println("\n\t| ", strings.Join(cmdError, "\n\t| "))			
-		}
-		fmt.Printf("\n")
 	}
 
 	return strings.Join(cmdOut, "\n"), exitCode

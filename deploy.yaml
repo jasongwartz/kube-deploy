@@ -5,6 +5,6 @@ application:
   remoteType: gcloud
 tests:
   - name: Test container can start
-    dockerArgs: -v ~/.kube-deploy.conf:/home/kube-deploy/.kube-deploy.conf
+  #  dockerArgs: #-v ~/.kube-deploy.conf:/home/kube-deploy/.kube-deploy.conf
     commands:
     - echo $PWD

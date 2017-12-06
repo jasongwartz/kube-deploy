@@ -51,6 +51,7 @@ type repoConfigMap struct {
 	BuildID string
 	ImageTag string
 	ImageName string
+	ImagePath string
 	ImageFullPath string
 	PWD string
 	Tests []testConfigMap `yaml:"tests"`
@@ -96,6 +97,7 @@ func initRepoConfig(configFilePath string) (repoConfigMap) {
 		repoConfig.BuildID)
 
 	repoConfig.ImageName = fmt.Sprintf("%s/%s:%s", repoConfig.GoogleCloudProjectName, repoConfig.Application.Name, repoConfig.ImageTag)
+	repoConfig.ImagePath = fmt.Sprintf("%s/%s/%s", userConfig.GoogleCloud.RegistryRoot, repoConfig.GoogleCloudProjectName, repoConfig.Application.Name)
 	repoConfig.ImageFullPath = fmt.Sprintf("%s/%s", userConfig.GoogleCloud.RegistryRoot, repoConfig.ImageName)
 	repoConfig.PWD, err = os.Getwd()
 
