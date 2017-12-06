@@ -26,8 +26,24 @@ Welcome to kube-deploy, a deployment tool for Kubernetes!
     - 'rolling-restart'     Will create a new ReplicaSet of the same image, to gradually restart all pods for the Deployment.
     - 'scale'               Scales the current deployment for this project and branch to the provided number of pods.
 
-kubectl patch deployment thumbs --namespace=development -p \
-  "{\"spec\":{\"template\":{\"metadata\":{\"labels\":{\"rolling-restart\":\"`date +'%s'`\"}}}}}"
+kubectl patch deployment thumbs --namespace=development -p "{\"spec\":{\"template\":{\"metadata\":{\"labels\":{\"rolling-restart\":\"`date +'%s'`\"}}}}}"
+
+kubectl patch deployment mycujoo-api --namespace=production -p "{\"spec\":{\"template\":{\"metadata\":{\"labels\":{\"rolling-restart\":\"`date +'%s'`\"}}}}}" && kubectl rollout status --namespace=production deployment/mycujoo-api
+
+## Building and Pushing
+
+### Pushing to Remote
+
+If you're logged in to your Docker remote repository, you don't need to set up any additional configuration to push your Docker image.
+
+If you're using Google Container Registry for `kube-deploy` images, a few short steps can log you into the Docker remote. If `kube-deploy` is being run locally, it will prompt you to run the following commands to authenticate the container registry:
+
+    gcloud components install docker-credential-gcr
+    docker-credential-gcr configure-docker
+
+If running on a machine inside Google Cloud, `kube-deploy` will prompt you to run the following command to log in:
+
+    docker login -u oauth2accesstoken -p "$(gcloud auth application-default print-access-token)" https://gcr.io
 
 
 ## Doing a Rollout
