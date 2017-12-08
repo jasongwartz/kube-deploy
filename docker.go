@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"os"
 	"text/tabwriter"
 	"fmt"
@@ -15,6 +16,11 @@ type gcloudDockerTag struct {
 }
 
 func dockerListTags() {
+	if ! strings.Contains(repoConfig.DockerRepository.RegistryRoot, "gcr.io") {
+		fmt.Println("=> Sorry, the 'list-tags' feature only works with Google Cloud Registry.")
+		os.Exit(1)
+	}
+
 	jsonTags := getCommandOutput("gcloud", fmt.Sprintf("container images list-tags --format=json eu.gcr.io/mycujoo-development/mycujoo-thumbs"))// %s", repoConfig.ImagePath))
 	decodedTags := []gcloudDockerTag{}
 

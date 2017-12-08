@@ -1,6 +1,7 @@
 package main
 
 import (
+	"regexp"
 	"fmt"
 	//"reflect"
 	"strings"
@@ -49,7 +50,16 @@ func runCommand(cmdName string, cmdArgs string, stream bool, quiet bool) (string
 		exitCode int
 	)
 
-	brokenArgs := strings.Split(cmdArgs, " ")
+	// This cmdArgs mess is to facilitate running arbitrary shell commands via `bash -c "<command>"`
+	// Regex will split into groups either by whitespace or by quotation marks
+	splitRe := regexp.MustCompile(`"(.+)"|(\S+)`)
+	brokenArgs := splitRe.FindAllString(cmdArgs, -1)
+	// Then, remove the quotation marks
+	for i, s := range brokenArgs {
+		if strings.Contains(s, "\"") {
+			brokenArgs[i] = strings.Replace(s, "\"", "", -1)
+		}
+	}
 	cmd := exec.Command(cmdName, brokenArgs...)
 
 	cmdReader, _ := cmd.StdoutPipe()

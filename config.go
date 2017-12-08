@@ -5,65 +5,62 @@ import (
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
-	"strings"
 	"regexp"
+	"strings"
 )
 
-// userConfigMap : hash of the YAML data from the Users ~/.deploy.conf
-type userConfigMap struct {
-	GoogleCloud struct {
-		DevelopmentProjectName string `yaml:"developmentProjectName"`
-		ProductionProjectName string `yaml:"productionProjectName"`
-		RegistryRoot string `yaml:"registryRoot"`
-	} `yaml:"googleCloud"`
-}
 
-func initUserConfig(configFilePath string) (userConfigMap) {
+// func initUserConfig(configFilePath string) userConfigMap {
 
-	configFile, err := ioutil.ReadFile(configFilePath)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Failed reading user config file:", err)
-		os.Exit(1)
-	}
+// 	configFile, err := ioutil.ReadFile(configFilePath)
+// 	if err != nil {
+// 		fmt.Fprintln(os.Stderr, "Failed reading user config file:", err)
+// 		os.Exit(1)
+// 	}
 
-	userConfig := userConfigMap{}
-	err = yaml.Unmarshal(configFile, &userConfig)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Failed parsing YAML user config file:", err)
-		os.Exit(1)
-	}
+// 	userConfig := userConfigMap{}
+// 	err = yaml.Unmarshal(configFile, &userConfig)
+// 	if err != nil {
+// 		fmt.Fprintln(os.Stderr, "Failed parsing YAML user config file:", err)
+// 		os.Exit(1)
+// 	}
 
-	return userConfig
-}
+// 	return userConfig
+// }
 
-// TODO : find someway to de-duplicate these two functions
+// // TODO : find someway to de-duplicate these two functions
 
 // repoConfigMap : hash of the YAML data from project's deploy.yaml
 type repoConfigMap struct {
+	DockerRepository struct {
+		DevelopmentRepositoryName string `yaml:"developmentRepositoryName"`
+		ProductionRepositoryName string `yaml:"productionRepositoryName"`
+		RegistryRoot string `yaml:"registryRoot"`
+	} `yaml:"dockerRepository"`
 	Application struct {
-		Name string `yaml:"name"`
+		Name    string `yaml:"name"`
 		Version string `yaml:"version"`
-		RemoteType string `yaml:"remoteType"`
 	} `yaml:"application"`
-	GoogleCloudProjectName string
-	EnvironmentName string // 'production' or 'development'
-	GitBranch string
-	BuildID string
-	ImageTag string
-	ImageName string
-	ImagePath string
-	ImageFullPath string
-	PWD string
-	Tests []testConfigMap `yaml:"tests"`
+	DockerRepositoryName string
+	EnvironmentName      string // 'production' (which includes 'staging') or 'development'
+	GitBranch            string
+	BuildID              string
+	ImageTag             string
+	ImageName            string
+	ImagePath            string
+	ImageFullPath        string
+	PWD                  string
+	Tests                []testConfigMap `yaml:"tests"`
 }
 
 // testConfigMap : layout of the details for running a single test step (during build)
 type testConfigMap struct {
-	Name string `yaml:"name"`
-	DockerArgs string `yaml:"dockerArgs"`
-	Commands []string `yaml:"commands"`
+	Name       string   `yaml:"name"`
+	DockerArgs string   `yaml:"dockerArgs"`
+	Commands   []string `yaml:"commands"`
 }
-func initRepoConfig(configFilePath string) (repoConfigMap) {
+
+func initRepoConfig(configFilePath string) repoConfigMap {
 
 	configFile, err := ioutil.ReadFile(configFilePath)
 	if err != nil {
@@ -84,10 +81,10 @@ func initRepoConfig(configFilePath string) (repoConfigMap) {
 	repoConfig.BuildID = strings.TrimSuffix(getCommandOutput("git", "rev-parse --verify --short HEAD"), "\n")
 
 	if repoConfig.GitBranch == "master" || repoConfig.GitBranch == "production" {
-		repoConfig.GoogleCloudProjectName = userConfig.GoogleCloud.ProductionProjectName
+		repoConfig.DockerRepositoryName = repoConfig.DockerRepository.ProductionRepositoryName
 		repoConfig.EnvironmentName = "production"
 	} else {
-		repoConfig.GoogleCloudProjectName = userConfig.GoogleCloud.DevelopmentProjectName
+		repoConfig.DockerRepositoryName = repoConfig.DockerRepository.DevelopmentRepositoryName
 		repoConfig.EnvironmentName = "development"
 	}
 
@@ -96,9 +93,9 @@ func initRepoConfig(configFilePath string) (repoConfigMap) {
 		repoConfig.GitBranch,
 		repoConfig.BuildID)
 
-	repoConfig.ImageName = fmt.Sprintf("%s/%s:%s", repoConfig.GoogleCloudProjectName, repoConfig.Application.Name, repoConfig.ImageTag)
-	repoConfig.ImagePath = fmt.Sprintf("%s/%s/%s", userConfig.GoogleCloud.RegistryRoot, repoConfig.GoogleCloudProjectName, repoConfig.Application.Name)
-	repoConfig.ImageFullPath = fmt.Sprintf("%s/%s", userConfig.GoogleCloud.RegistryRoot, repoConfig.ImageName)
+	repoConfig.ImageName = fmt.Sprintf("%s/%s:%s", repoConfig.DockerRepositoryName, repoConfig.Application.Name, repoConfig.ImageTag)
+	repoConfig.ImagePath = fmt.Sprintf("%s/%s/%s", repoConfig.DockerRepository.RegistryRoot, repoConfig.DockerRepositoryName, repoConfig.Application.Name)
+	repoConfig.ImageFullPath = fmt.Sprintf("%s/%s", repoConfig.DockerRepository.RegistryRoot, repoConfig.ImageName)
 	repoConfig.PWD, err = os.Getwd()
 
 	return repoConfig

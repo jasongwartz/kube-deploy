@@ -34,20 +34,31 @@ kubectl patch deployment mycujoo-api --namespace=production -p "{\"spec\":{\"tem
 
 ### Running Tests
 
-The Docker image will be started using "detached" mode, the `-d` flag.
+The test sets are defined in the format:
+
+    tests:
+    - name: <testSet name>
+      dockerArgs: <the arguments that will be passed to docker run. `-d` is very often useful>
+      commands:
+      - array of
+      - shell commands that
+      - will be executed after the
+      - test container has started
+
+There's even a `deploy.yaml` for `kube-deploy`, which tests that the source code can build and run.
 
 An example test set configuration looks like this:
 
     tests:
     - name: Test container can start
-      dockerArgs:
+      dockerArgs: -d
       commands:
       - docker ps | grep 'test'
     - name: Test that container can respond to ping
-      dockerArgs: -p 3000:3000 -e ENVIRONMENT=development
+      dockerArgs: -d -p 3000:3000 -e ENVIRONMENT=development
       commands:
       - curl --quiet localhost:3000
-    - name: Run the test script
+    - name: Run the test scripts
       dockerArgs: -p 3000:3000
       commands:
       - sh test.sh
@@ -59,7 +70,7 @@ The commands can be anything that is runnable in your local shell, including `do
 
 If you're logged in to your Docker remote repository, you don't need to set up any additional configuration to push your Docker image.
 
-If you're using Google Container Registry for `kube-deploy` images, a few short steps can log you into the Docker remote. If `kube-deploy` is being run locally, it will prompt you to run the following commands to authenticate the container registry:
+If you're using Google Container Registry for `kube-deploy` images, a few short steps can log you into the Docker remote. If `kube-deploy` is being run locally, it will prompt you to run the following commands to authenticate the container registry (If your local machine is a Mac, you might have to disable "Securely store docker logins in macOS keychain" to make `docker-credential-gcr` work properly):
 
     gcloud components install docker-credential-gcr
     docker-credential-gcr configure-docker
@@ -84,3 +95,4 @@ For a normal rollout, first check out the repository to the branch you wish to d
     *any other*     development             <git-SHA1>.<your-username>.<project-subdomain>.dev.<domain-tld>
 
 For example, if I (Jason) deploy the current branch at SHA `8086b67` for the project `awesome-website` and the company 'mycujoo.tv', the Kubernetes resources will be created in the `development` namespace and I will be able to access any Ingresses at `8086b67.jason.awesome-website.dev.mycujoo.tv`.
+

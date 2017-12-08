@@ -10,7 +10,11 @@ import (
 
 func makeAndPushBuild() {
 	makeAndTestBuild()
-	pushDockerImage()
+	if runFlags.Bool("force-push-image") {
+		forcePushDockerImage()
+	} else {
+		askPushDockerImage()
+	}
 }
 func makeAndTestBuild() {
 	makeBuild()
@@ -41,6 +45,7 @@ func makeBuild() {
 	if repoConfig.EnvironmentName == "production" {
 		if !checkWorkingDirectory() {
 			fmt.Println("=> Oh no! You have uncommited changes in the working tree. Please commit or stash before deploying to production.")
+			fmt.Println("=> If you're really, really sure, you can override this warning with the '--override-dirty-workdir' flag.")
 			os.Exit(1)
 		}
 	}
@@ -69,7 +74,10 @@ func runBuildTests() {
 
 		// Start the test container
 		containerName, exitCode := getCommandOutputAndExitCode("docker",
-			strings.Join([]string{"run -d", dockerRunCommand}, " "))
+			strings.Join([]string{"run", dockerRunCommand}, " "))
+		if runFlags.Bool("debug") {
+			fmt.Println(containerName)
+		}
 		if exitCode != 0 {
 			teardownTest(containerName, true)
 		}
@@ -83,6 +91,7 @@ func runBuildTests() {
 			time.Sleep(2 * time.Second)
 			fmt.Printf("=> Executing test command: %s\n", testCommand)
 			commandSplit := strings.SplitN(testCommand, " ", 2)
+			// Run the test command
 			if _, exitCode := streamAndGetCommandOutputAndExitCode(commandSplit[0], commandSplit[1]); exitCode != 0 {
 				teardownTest(containerName, true)
 				break
@@ -93,9 +102,17 @@ func runBuildTests() {
 }
 
 func teardownTest(containerName string, exit bool) {
-	fmt.Println("=> Tearing down test container.")
+	fmt.Println("=> Stopping test container.")
 	getCommandOutput("docker", fmt.Sprintf("stop %s", containerName))
-	if exit { os.Exit(1) }
+	if runFlags.Bool("keep-test-container") {
+		fmt.Println("=> Leaving the test container without deleting, like you asked.\n")
+	} else {
+		fmt.Println("=> Removing test container.")
+		getCommandOutput("docker", fmt.Sprintf("rm %s", containerName))
+	}
+	if exit {
+		os.Exit(1)
+	}
 }
 
 func tagDockerImage() {
@@ -103,13 +120,17 @@ func tagDockerImage() {
 	getCommandOutput("docker", fmt.Sprintf("tag %s %s", repoConfig.ImageName, repoConfig.ImageFullPath))
 }
 
-func pushDockerImage() {
+func askPushDockerImage() {
 	fmt.Print("=> Yay, all the tests passed! Would you like to push this to the remote now?\n=> Press 'y' to push, anything else to exit.\n>>> ") // TODO - make this pluggable
 	confirm, _ := reader.ReadString('\n')
 	if confirm != "y\n" && confirm != "Y" {
 		fmt.Println("=> Thanks for building, Bob!")
 		os.Exit(0)
 	} else {
-		streamAndGetCommandOutput("gcloud", fmt.Sprintf("docker -- push %s", repoConfig.ImageFullPath))
+		streamAndGetCommandOutput("docker", fmt.Sprintf("push %s", repoConfig.ImageFullPath))
 	}
+}
+
+func forcePushDockerImage() {
+	streamAndGetCommandOutput("docker", fmt.Sprintf("push %s", repoConfig.ImageFullPath))
 }
