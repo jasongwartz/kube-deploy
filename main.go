@@ -55,6 +55,8 @@ func main() {
 			makeAndTestBuild()
 		case "testonly":
 			runBuildTests()
+		case "start-rollout":
+			kubeStartRollout()
 
 		// case "list-deployments": kubeListDeployments()
 		case "list-tags":

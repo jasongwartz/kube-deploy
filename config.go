@@ -40,6 +40,8 @@ type repoConfigMap struct {
 	Application struct {
 		Name    string `yaml:"name"`
 		Version string `yaml:"version"`
+		PathToKubernetesFiles string `yaml:"pathToKubernetesFiles"`
+		KubernetesTemplateVariables []string `yaml:"kubernetesTemplateVariables"`
 	} `yaml:"application"`
 	DockerRepositoryName string
 	EnvironmentName      string // 'production' (which includes 'staging') or 'development'

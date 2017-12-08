@@ -73,7 +73,7 @@ func runBuildTests() {
 		}
 
 		// Start the test container
-		containerName, exitCode := getCommandOutputAndExitCode("docker",
+		containerName, exitCode := streamAndGetCommandOutputAndExitCode("docker",
 			strings.Join([]string{"run", dockerRunCommand}, " "))
 		if runFlags.Bool("debug") {
 			fmt.Println(containerName)

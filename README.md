@@ -26,10 +26,6 @@ Welcome to kube-deploy, a deployment tool for Kubernetes!
     - 'rolling-restart'     Will create a new ReplicaSet of the same image, to gradually restart all pods for the Deployment.
     - 'scale'               Scales the current deployment for this project and branch to the provided number of pods.
 
-kubectl patch deployment thumbs --namespace=development -p "{\"spec\":{\"template\":{\"metadata\":{\"labels\":{\"rolling-restart\":\"`date +'%s'`\"}}}}}"
-
-kubectl patch deployment mycujoo-api --namespace=production -p "{\"spec\":{\"template\":{\"metadata\":{\"labels\":{\"rolling-restart\":\"`date +'%s'`\"}}}}}" && kubectl rollout status --namespace=production deployment/mycujoo-api
-
 ## Building and Pushing
 
 ### Running Tests
@@ -79,6 +75,9 @@ If running on a machine inside Google Cloud, `kube-deploy` will prompt you to ru
 
     docker login -u oauth2accesstoken -p "$(gcloud auth application-default print-access-token)" https://gcr.io
 
+## Kubernetes Configuration
+
+The `kubernetesTemplateVariables` is an array of environment variable statements (in the format `ENV_KEY=valuevalue`) that will be added to the environment before templating the file with consul-template. These template variables can reference each other using Go string formatting - for example, `DOMAIN={{.APP_NAME}}.mycujoo.tv`.
 
 ## Doing a Rollout
 
