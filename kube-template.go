@@ -26,6 +26,12 @@ func runConsulTemplate(filename string) (string) {
 		envMap[split[0]] = split[1]
 	}
 
+	// Include the template freebie variables
+	envMap["KD_GIT_BRANCH"] = repoConfig.GitBranch
+	envMap["KD_ENVIRONMENT_NAME"] = repoConfig.EnvironmentName
+	envMap["KD_IMAGE_FULL_PATH"] = repoConfig.ImageFullPath
+
+	fmt.Println(envMap)
 	for key, value := range envMap {
 		var envVarBuf bytes.Buffer
 		tmplVar, err := template.New("EnvVar: " + key).Parse(value)

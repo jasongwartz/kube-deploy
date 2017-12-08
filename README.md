@@ -79,6 +79,21 @@ If running on a machine inside Google Cloud, `kube-deploy` will prompt you to ru
 
 The `kubernetesTemplateVariables` is an array of environment variable statements (in the format `ENV_KEY=valuevalue`) that will be added to the environment before templating the file with consul-template. These template variables can reference each other using Go string formatting - for example, `DOMAIN={{.APP_NAME}}.mycujoo.tv`.
 
+To use these in your Kubernetes config file, use the `consul-template` syntax for environment variable interpolation. In practice, this might look like:
+
+    metadata:
+        name: {{ env "APP_NAME" }}
+        namespace: {{ env "NAMESPACE" }}
+
+Some freebie variables are included by `kube-deploy` for you to use in your Kubernetes YAML files, prepended with "KD". These can be used in the exact same way as the other template variables, both in the Kubernetes file using the `consul-template` syntax and inside other environment variables (like `DOMAIN={{.KD_GIT_BRANCH}}.{{.KD_ENVIRONMENT_NAME}}.mycujoo.tv`).
+
+The "KD" freebie variables are:
+
+- `KD_GIT_BRANCH` - self-explanatory
+- `KD_ENVIRONMENT_NAME` - ('production' for master and production branch names, 'development' otherwise)
+- `KD_IMAGE_FULL_PATH` - the full tag of the Docker image, including repository URL
+
+
 ## Doing a Rollout
 
 For a normal rollout, first check out the repository to the branch you wish to deplot, and start the process by running `kube-deploy start-rollout`. If you have already made and pushed a build for the current HEAD, `kube-deploy` will begin the deployment process immediately; if you have not made and pushed a build for the current HEAD, `kube-deploy` will prompt you to do so now.
