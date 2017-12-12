@@ -20,18 +20,33 @@ func runConsulTemplate(filename string) (string) {
 	}
 	consulTemplateArgs := fmt.Sprintf("%s -template %s -once -dry", vaultAddr, filename)
 
+	// the map which will contain all environment variables to be set before running consul-template
 	envMap := make(map[string]string)
-	for _, e := range repoConfig.Application.KubernetesTemplateVariables {
-		split := strings.Split(e, "=")
-		envMap[split[0]] = split[1]
-	}
 
 	// Include the template freebie variables
 	envMap["KD_GIT_BRANCH"] = repoConfig.GitBranch
 	envMap["KD_ENVIRONMENT_NAME"] = repoConfig.EnvironmentName
 	envMap["KD_IMAGE_FULL_PATH"] = repoConfig.ImageFullPath
 
-	fmt.Println(envMap)
+	var branchName string
+	if _, ok := repoConfig.Application.KubernetesTemplate.BranchVariables[repoConfig.GitBranch]; ok {
+		branchName = repoConfig.GitBranch
+	} else {
+		branchName = "else"
+	}
+	// Parse and add the branch-specific env vars first
+	for _, envVar := range repoConfig.Application.KubernetesTemplate.BranchVariables[branchName] {
+		split := strings.Split(envVar, "=")
+		envMap[split[0]] = split[1]
+	}
+
+	// Parse and add the rest of the env vars
+	for _, envVar := range repoConfig.Application.KubernetesTemplate.GlobalVariables {
+		split := strings.Split(envVar, "=")
+		envMap[split[0]] = split[1]
+	}
+
+	// Add the variables to the environment, doing any inline substitutions
 	for key, value := range envMap {
 		var envVarBuf bytes.Buffer
 		tmplVar, err := template.New("EnvVar: " + key).Parse(value)
@@ -43,6 +58,7 @@ func runConsulTemplate(filename string) (string) {
 		}
 		os.Setenv(key, envVarBuf.String())
 	}
+
 	output, exitCode := getCommandOutputAndExitCode("consul-template", consulTemplateArgs)
 	if exitCode != 0 {
 		fmt.Println("=> Oh no, looks like consul-template failed!")

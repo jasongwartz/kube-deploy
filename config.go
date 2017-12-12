@@ -41,7 +41,10 @@ type repoConfigMap struct {
 		Name    string `yaml:"name"`
 		Version string `yaml:"version"`
 		PathToKubernetesFiles string `yaml:"pathToKubernetesFiles"`
-		KubernetesTemplateVariables []string `yaml:"kubernetesTemplateVariables"`
+		KubernetesTemplate struct {
+			GlobalVariables []string `yaml:"globalVariables"`
+			BranchVariables map[string][]string `yaml:"branchVariables"`			
+		} `yaml:"kubernetesTemplate"`
 	} `yaml:"application"`
 	DockerRepositoryName string
 	EnvironmentName      string // 'production' (which includes 'staging') or 'development'

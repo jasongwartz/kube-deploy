@@ -77,7 +77,37 @@ If running on a machine inside Google Cloud, `kube-deploy` will prompt you to ru
 
 ## Kubernetes Configuration
 
-The `kubernetesTemplateVariables` is an array of environment variable statements (in the format `ENV_KEY=valuevalue`) that will be added to the environment before templating the file with consul-template. These template variables can reference each other using Go string formatting - for example, `DOMAIN={{.APP_NAME}}.mycujoo.tv`.
+`kube-deploy` utilises [`consul-template`](https://github.com/hashicorp/consul-template) to interpolate variables into Kubernetes YAML configuration files.
+
+Environment variables can be specificed in the `kube-deploy` configuration file. All environment variables are declared in bash-like environment variable statements (in the format `ENV_KEY=value`), and will be added to the environment before templating the file with consul-template. These template variables can reference each other using Go string formatting - for example, `DOMAIN={{.APP_NAME}}.mycujoo.tv`.
+There are two sets of variables that can be declared inside `application->kubernetesTemplate` (see example configuration for more information):
+- `branchVariables` is a map of arrays of environment variable statements, specified per git branch.
+```
+branchVariables:
+    production:
+    - DOMAIN=thumbs.mycujoo.tv
+    master:
+    - DOMAIN=thumbs.staging.mycujoo.tv
+    else:
+    - DOMAIN={{.KD_GIT_BRANCH}}.thumbs.dev.mycujoo.tv
+```
+- `globalVariables` is an array of environment variables that will be consistent across all git branches.
+```
+globalVariables:
+  - APP_NAME=thumbs
+  - REPLICAS=4
+```
+
+Some freebie variables are included by `kube-deploy` for you to use in your Kubernetes YAML files, prepended with "KD". These can be used in the exact same way as the other template variables, both in the Kubernetes file using the `consul-template` syntax and inside other environment variables (like `DOMAIN={{.KD_GIT_BRANCH}}.{{.KD_ENVIRONMENT_NAME}}.mycujoo.tv`).
+
+The "KD" freebie variables are:
+- `KD_GIT_BRANCH` - the current git branch
+- `KD_ENVIRONMENT_NAME` - ('production' for master and production branch names, 'development' otherwise)
+- `KD_IMAGE_FULL_PATH` - the full tag of the Docker image, including repository URL
+
+The branch-speciifc variables are parsed first, which means that the `globalVariables` can reference values from `branchVariables`, but not the other way around. Both `globalVariables` and `branchVariables` can reference the "KD" freebie variables.
+
+### Usage
 
 To use these in your Kubernetes config file, use the `consul-template` syntax for environment variable interpolation. In practice, this might look like:
 
@@ -85,13 +115,8 @@ To use these in your Kubernetes config file, use the `consul-template` syntax fo
         name: {{ env "APP_NAME" }}
         namespace: {{ env "NAMESPACE" }}
 
-Some freebie variables are included by `kube-deploy` for you to use in your Kubernetes YAML files, prepended with "KD". These can be used in the exact same way as the other template variables, both in the Kubernetes file using the `consul-template` syntax and inside other environment variables (like `DOMAIN={{.KD_GIT_BRANCH}}.{{.KD_ENVIRONMENT_NAME}}.mycujoo.tv`).
 
-The "KD" freebie variables are:
 
-- `KD_GIT_BRANCH` - self-explanatory
-- `KD_ENVIRONMENT_NAME` - ('production' for master and production branch names, 'development' otherwise)
-- `KD_IMAGE_FULL_PATH` - the full tag of the Docker image, including repository URL
 
 
 ## Doing a Rollout
