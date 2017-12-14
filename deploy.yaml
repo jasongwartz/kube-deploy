@@ -2,7 +2,6 @@
 dockerRepository:
   developmentRepositoryName: mycujoo-development
   productionRepositoryName: refined-cortex-806
-  registryRoot: eu.gcr.io
 application:
   name: kube-deploy
   version: 0.0.1

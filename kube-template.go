@@ -24,9 +24,13 @@ func runConsulTemplate(filename string) (string) {
 	envMap := make(map[string]string)
 
 	// Include the template freebie variables
+	envMap["KD_RELEASE_NAME"] = repoConfig.ReleaseName
+	envMap["KD_APP_NAME"] = repoConfig.Application.Name + "-" + repoConfig.GitBranch
+	envMap["KD_KUBERNETES_NAMESPACE"] = repoConfig.Namespace
 	envMap["KD_GIT_BRANCH"] = repoConfig.GitBranch
 	envMap["KD_ENVIRONMENT_NAME"] = repoConfig.EnvironmentName
 	envMap["KD_IMAGE_FULL_PATH"] = repoConfig.ImageFullPath
+	envMap["KD_IMAGE_TAG"] = repoConfig.ImageTag
 
 	var branchName string
 	if _, ok := repoConfig.Application.KubernetesTemplate.BranchVariables[repoConfig.GitBranch]; ok {

@@ -31,9 +31,11 @@ func dockerListTags() {
 	// fmt.Println(string(prettyPrint))
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', tabwriter.AlignRight)
+	fmt.Fprintln(w, fmt.Sprintf("%s  \t  %s", "List of Tags", "Date Tagged"))
+	fmt.Fprintln(w, fmt.Sprintf("%s  \t  %s", "----------", "----------"))
 	for _, tag := range decodedTags {
 		// fmt.Println(tag)
-		fmt.Fprintln(w, fmt.Sprintf("%s  \t  %s", tag.Tags, tag.Timestamp))
+		fmt.Fprintln(w, fmt.Sprintf("%s  \t  %s", strings.Join(tag.Tags, ", "), tag.Timestamp.Datetime))
 	}
 	w.Flush()
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"k8s.io/client-go/kubernetes"
 	"fmt"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
@@ -48,6 +49,7 @@ type repoConfigMap struct {
 	} `yaml:"application"`
 	DockerRepositoryName string
 	EnvironmentName      string // 'production' (which includes 'staging') or 'development'
+	Namespace            string
 	GitBranch            string
 	BuildID              string
 	ImageTag             string
@@ -55,6 +57,8 @@ type repoConfigMap struct {
 	ImagePath            string
 	ImageFullPath        string
 	PWD                  string
+	ReleaseName          string
+	KubeAPIClientSet     *kubernetes.Clientset
 	Tests                []testConfigMap `yaml:"tests"`
 }
 
@@ -85,12 +89,19 @@ func initRepoConfig(configFilePath string) repoConfigMap {
 	repoConfig.GitBranch = invalidDockertagCharRegex.ReplaceAllString(repoConfig.GitBranch, "-")
 	repoConfig.BuildID = strings.TrimSuffix(getCommandOutput("git", "rev-parse --verify --short HEAD"), "\n")
 
-	if repoConfig.GitBranch == "master" || repoConfig.GitBranch == "production" {
+	switch branch := repoConfig.GitBranch; branch {
+	case "production":
 		repoConfig.DockerRepositoryName = repoConfig.DockerRepository.ProductionRepositoryName
 		repoConfig.EnvironmentName = "production"
-	} else {
+		repoConfig.Namespace = "production"
+	case "master":
+		repoConfig.DockerRepositoryName = repoConfig.DockerRepository.ProductionRepositoryName
+		repoConfig.EnvironmentName = "production" // deploy to production cluster
+		repoConfig.Namespace = "staging"
+	default:
 		repoConfig.DockerRepositoryName = repoConfig.DockerRepository.DevelopmentRepositoryName
 		repoConfig.EnvironmentName = "development"
+		repoConfig.Namespace = "development"
 	}
 
 	repoConfig.ImageTag = fmt.Sprintf("%s-%s-%s",
@@ -99,9 +110,18 @@ func initRepoConfig(configFilePath string) repoConfigMap {
 		repoConfig.BuildID)
 
 	repoConfig.ImageName = fmt.Sprintf("%s/%s:%s", repoConfig.DockerRepositoryName, repoConfig.Application.Name, repoConfig.ImageTag)
-	repoConfig.ImagePath = fmt.Sprintf("%s/%s/%s", repoConfig.DockerRepository.RegistryRoot, repoConfig.DockerRepositoryName, repoConfig.Application.Name)
-	repoConfig.ImageFullPath = fmt.Sprintf("%s/%s", repoConfig.DockerRepository.RegistryRoot, repoConfig.ImageName)
+	if repoConfig.DockerRepository.RegistryRoot != "" {
+		repoConfig.ImagePath = fmt.Sprintf("%s/%s/%s", repoConfig.DockerRepository.RegistryRoot, repoConfig.DockerRepositoryName, repoConfig.Application.Name)
+		repoConfig.ImageFullPath = fmt.Sprintf("%s/%s", repoConfig.DockerRepository.RegistryRoot, repoConfig.ImageName)	
+	} else { // For DockerHub images, no RegistryRoot is needed
+		repoConfig.ImagePath = fmt.Sprintf("%s/%s", repoConfig.DockerRepositoryName, repoConfig.Application.Name)
+		repoConfig.ImageFullPath = repoConfig.ImageName
+	}
+	
+	repoConfig.ReleaseName = fmt.Sprintf("%s-%s", repoConfig.Application.Name, repoConfig.ImageTag)
 	repoConfig.PWD, err = os.Getwd()
+
+	repoConfig.KubeAPIClientSet = setupKubeAPI()
 
 	return repoConfig
 }

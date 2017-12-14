@@ -33,7 +33,7 @@ func main() {
 		
 => That means we're dealing with the image tag:
 		%s
-		`, repoConfig.Application.Name, repoConfig.GitBranch, repoConfig.BuildID, repoConfig.ImageFullPath)
+`, repoConfig.Application.Name, repoConfig.GitBranch, repoConfig.BuildID, repoConfig.ImageFullPath)
 
 	// fmt.Print("\n\n=> Press 'y' if this is correct, anything else to exit.\n>>>  ")
 	// confirm, _ := reader.ReadString('\n')
@@ -41,6 +41,11 @@ func main() {
 	// 	fmt.Println("I'm sorry to say goodbye, I thought we really had something.")
 	// 	os.Exit(1)
 	// }
+
+	if exitCode := getCommandExitCode("curl", "-s --connect-timeout 3 https://ifconfig.co"); exitCode != 0 {
+		fmt.Println("=> Uh oh, looks like you're not connected to the internet (or maybe it's just too slow).")
+		os.Exit(1)
+	}
 
 	// args has to have at least length 2, since the first element is the executable name
 	if len(args) >= 2 {
@@ -58,7 +63,8 @@ func main() {
 		case "start-rollout":
 			kubeStartRollout()
 
-		// case "list-deployments": kubeListDeployments()
+		case "active-deployments":
+			kubeListDeployments()
 		case "list-tags":
 			dockerListTags()
 			// case "lock": writeLockFile()
@@ -68,7 +74,7 @@ func main() {
 				fmt.Println("=> Uh oh - that command isn't recongised. Please enter a valid command. Do you need some help?")
 				fmt.Print("=> Press 'y' to show the help menu, anything else to exit.\n>>>  ")
 				pleaseHelpMe, _ := reader.ReadString('\n')
-				if pleaseHelpMe != "y\n" && pleaseHelpMe != "Y" {
+				if pleaseHelpMe != "y\n" && pleaseHelpMe != "Y\n" {
 					fmt.Println("Better luck next time.")
 					os.Exit(0)
 				}
@@ -81,8 +87,25 @@ func main() {
 	}
 }
 
+func askToProceed(promptMessage string, exitMessage string) {
+	fmt.Printf("=> %s\n=> Press 'y' to proceed, anything else to exit.\n>>> ", promptMessage)
+	if proceed, _ := reader.ReadString('\n'); proceed != "y\n" && proceed != "Y\n" {
+		fmt.Println("=> " + exitMessage)
+		os.Exit(0)
+	}
+}
+
+func installDependencies() {
+	// Installs:
+		// git
+		// vault
+		// consul-template
+		// kubectl
+	
+}
+
 func showHelp() {
-	helpData, err := ioutil.ReadFile("README.md")
+	helpData, err := ioutil.ReadFile("README.md") // make this part of the application bundle
 	if err != nil {
 		fmt.Println("=> Oh no, we couldn't even read the help file!")
 		panic(err)

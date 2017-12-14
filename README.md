@@ -115,9 +115,17 @@ To use these in your Kubernetes config file, use the `consul-template` syntax fo
         name: {{ env "APP_NAME" }}
         namespace: {{ env "NAMESPACE" }}
 
+### Vault
 
+An advantage of using `consul-template` over any other Go-style string templating is the ability to interpolate secrets from Vault (usually into a Kubernetes Secrets YAML file).
 
+Example:
+```
+data:
+  ACCESS_KEY_ID: "{{ with secret "secret/access_key_id" }}{{ .Data.value | base64Encode }}{{ end }}"
+```
 
+This relies on a valid `$VAULT_ADDR` and `$VAULT_TOKEN` being set in the user environment, outside of `kube-deploy`.
 
 ## Doing a Rollout
 
