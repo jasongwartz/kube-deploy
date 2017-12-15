@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
+	typedv1beta1 "k8s.io/client-go/kubernetes/typed/apps/v1beta1"
+
 	// "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -18,6 +20,8 @@ import (
 	// Uncomment the following line to load the gcp plugin (only required to authenticate against GKE clusters).
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
+
+var kubeDeploymentClient typedv1beta1.DeploymentInterface
 
 func setupKubeAPI() (*kubernetes.Clientset) {
 
@@ -44,24 +48,63 @@ func setupKubeAPI() (*kubernetes.Clientset) {
 	if err != nil {
 		panic(err.Error())
 	}
-
+	
+	
 	return clientset
 }
 
-func kubeAPIGetPodSpecReplicaCount() (int) {
-	count, err := repoConfig.KubeAPIClientSet.
-		ExtensionsV1beta1().Deployments(repoConfig.Namespace).
-		Get(repoConfig.ReleaseName, metav1.GetOptions{})
+func createKubeDeploymentClient() {
+	client := repoConfig.KubeAPIClientSet.AppsV1beta1().Deployments(repoConfig.Namespace)
+	kubeDeploymentClient = client
+}
 
+
+func kubeAPIGetSingleDeployment(name string) (*v1beta1.Deployment) {
+	deployment, _ := repoConfig.KubeAPIClientSet.
+		ExtensionsV1beta1().Deployments(repoConfig.Namespace).
+		Get(name, metav1.GetOptions{})
+	// Return even if nil
+	return deployment
+}
+
+func kubeAPIUpdateDeployment(deployment *v1beta1.Deployment) (*v1beta1.Deployment) {
+	newDeployment, err := repoConfig.KubeAPIClientSet.
+		ExtensionsV1beta1().Deployments(repoConfig.Namespace).
+		Update(deployment)
 	if err != nil {
 		panic(err.Error())
 	}
-	return int(*count.Spec.Replicas)
+	if runFlags.Bool("debug") {
+		fmt.Printf("=> => Updated deployment %s.\n", deployment.Name)
+	}
+	return newDeployment
+	
 }
 
-func kubeAPIListDeployments() (*v1beta1.DeploymentList) {
+func kubeAPIAddDeploymentLabel(deployment *v1beta1.Deployment, key string, value string) {
+	existingLabels := deployment.GetLabels()
+	existingLabels[key] = value
+}
 
-	labelFilter := map[string]string{ "app": repoConfig.Application.Name + "-" + repoConfig.GitBranch }
+func kubeAPIRemoveDeploymentLabel(deployment *v1beta1.Deployment, key string) {
+	existingLabels := deployment.GetLabels()
+	delete(existingLabels, key)
+}
+
+func kubeAPIDeleteDeployment(deployment *v1beta1.Deployment) {
+	deletePolicy := metav1.DeletePropagationForeground
+
+	if err := repoConfig.KubeAPIClientSet.
+		ExtensionsV1beta1().Deployments(repoConfig.Namespace).
+		Delete(deployment.Name, &metav1.DeleteOptions{
+			PropagationPolicy: &deletePolicy,
+	}); err != nil {
+		panic(err.Error())
+	}
+}
+
+func kubeAPIListDeployments(labelFilter map[string]string) (*v1beta1.DeploymentList) {
+
 	label := labels.Set(labelFilter)
 
 	deployments, err := repoConfig.KubeAPIClientSet.

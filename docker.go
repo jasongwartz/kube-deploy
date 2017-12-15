@@ -39,3 +39,12 @@ func dockerListTags() {
 	}
 	w.Flush()
 }
+
+func dockerImageExists() (bool) {
+	exitCode := getCommandExitCode("docker", fmt.Sprintf("inspect %s", repoConfig.ImageFullPath))
+
+	if exitCode != 0 {
+		return false
+	}
+	return true
+}

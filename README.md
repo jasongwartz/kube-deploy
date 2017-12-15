@@ -1,6 +1,6 @@
 # kube-deploy
 
-Welcome to kube-deploy, a deployment tool for Kubernetes!
+Welcome to kube-deploy, an opinionated but friendly deployment tool for Kubernetes!
 
 ## Commands 
 
