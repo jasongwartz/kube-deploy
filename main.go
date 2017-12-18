@@ -23,31 +23,24 @@ func main() {
 	reader = bufio.NewReader(os.Stdin)
 
 	fmt.Println("\n=> Welcome to kube-deploy.\n\n")
-	// fmt.Println("=> First, I'm going to read your user configuration file.")
-	// userConfig = initUserConfig(fmt.Sprintf("%s/.kube-deploy.conf", userHome))
-	fmt.Println("=> First, I'm going to read the repo configuration file.")
-	repoConfig = initRepoConfig(fmt.Sprintf("%s/deploy.yaml", pwd))
-	fmt.Printf(`=> I found the following data:
-		Repository name: %s
-		Current branch: %s
-		HEAD hash: %s
-		
+
+	if ! runFlags.Bool("test-only") {
+		fmt.Println("=> First, I'm going to read the repo configuration file.")
+		repoConfig = initRepoConfig(fmt.Sprintf("%s/deploy.yaml", pwd))
+		fmt.Printf(`=> I found the following data:
+			Repository name: %s
+			Current branch: %s
+			HEAD hash: %s
+			
 => That means we're dealing with the image tag:
-		%s
-`, repoConfig.Application.Name, repoConfig.GitBranch, repoConfig.BuildID, repoConfig.ImageFullPath)
+	%s
+	`, repoConfig.Application.Name, repoConfig.GitBranch, repoConfig.BuildID, repoConfig.ImageFullPath)
 
-	// fmt.Print("\n\n=> Press 'y' if this is correct, anything else to exit.\n>>>  ")
-	// confirm, _ := reader.ReadString('\n')
-	// if confirm != "y\n" && confirm != "Y" {
-	// 	fmt.Println("I'm sorry to say goodbye, I thought we really had something.")
-	// 	os.Exit(1)
-	// }
-
-	if exitCode := getCommandExitCode("curl", "-s --connect-timeout 3 https://ifconfig.co"); exitCode != 0 {
-		fmt.Println("=> Uh oh, looks like you're not connected to the internet (or maybe it's just too slow).")
-		os.Exit(1)
+		if exitCode := getCommandExitCode("curl", "-s --connect-timeout 3 https://ifconfig.co"); exitCode != 0 {
+			fmt.Println("=> Uh oh, looks like you're not connected to the internet (or maybe it's just too slow).")
+			os.Exit(1)
+		}	
 	}
-
 	// args has to have at least length 2, since the first element is the executable name
 	if len(args) >= 2 {
 		fmt.Printf("\n=> You've chosen the action '%s'. Proceeding...\n\n", args[1])
@@ -71,6 +64,8 @@ func main() {
 			kubeScaleDeployment(int32(replicas))
 		case "rollback":
 			kubeInstantRollback()
+		case "rolling-restart":
+			kubeRollingRestart()
 
 		case "active-deployments":
 			kubeListDeployments()
@@ -137,6 +132,7 @@ func parseFlags() {
 	runFlags.NewBoolFlag("force-push-image", "", "Automatically push the built Docker image if the tests pass (useful for CI/CD).")
 	runFlags.NewBoolFlag("keep-test-container", "", "Don't clean up (docker rm) the test containers (Default false).")
 	runFlags.NewBoolFlag("no-canary", "", "Bypass the canary release points (useful for CI/CD).")
+	runFlags.NewBoolFlag("test-only", "", "Skips the run configuration and only tests that the binary can start.")
 
 	if err := runFlags.Parse(os.Args...); err != nil {
 		fmt.Println("\n=> Oh no, I don't know what to do with those command line flags. Sorry...\n")

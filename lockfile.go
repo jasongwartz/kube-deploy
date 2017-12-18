@@ -56,6 +56,7 @@ func writeLockFile(filename, reason string) {
 	if err != nil {
 		panic(err.Error())
 	}
+	fmt.Printf("=> Successfully wrote lockfile for '%s'.\n\n", filename)
 }
 
 func deleteLockFile(filename string) {
@@ -65,27 +66,29 @@ func deleteLockFile(filename string) {
 	}
 }
 
-func checkLocks() (bool) {
+func isLocked() bool {
 	if lockFileExists("all") {
 		fmt.Println("=> All rollouts are currently blocked.")
 		lock := readLockFile("all")
 		fmt.Printf("\tBlocked by: %s\n\tFor reason: %s\n\tOn date: %s\n",
 			lock.Author, lock.Reason, lock.DateStarted)
-		os.Exit(1)
+		return true
 	}
 	if lockFileExists(repoConfig.Application.Name) {
 		fmt.Printf("=> Rollouts for %s are blocked.\n", repoConfig.Application.Name)
 		lock := readLockFile(repoConfig.Application.Name)
 		fmt.Printf("\tBlocked by: %s\n\tFor reason: %s\n\tOn date: %s\n",
 			lock.Author, lock.Reason, lock.DateStarted)
-		os.Exit(1)
+		return true
 	}
 	return false
 }
 
 func lockBeforeRollout() {
-	if ! checkLocks() {
+	if !isLocked() {
 		writeLockFile(repoConfig.Application.Name, "rollout in progress")
+	} else {
+		os.Exit(1)
 	}
 }
 

@@ -71,6 +71,9 @@ func runBuildTests() {
 		} else {
 			dockerRunCommand = repoConfig.ImageName
 		}
+		if testSet.DockerCommand != "" {
+			dockerRunCommand = dockerRunCommand + " " + testSet.DockerCommand
+		}
 
 		// Start the test container
 		containerName, exitCode := streamAndGetCommandOutputAndExitCode("docker",
