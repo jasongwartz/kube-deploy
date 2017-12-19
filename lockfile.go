@@ -1,30 +1,30 @@
 package main
 
 import (
-	"time"
-	"fmt"
 	"encoding/json"
-	"os"
+	"fmt"
 	"io/ioutil"
+	"os"
 	"os/user"
+	"time"
 )
 
 const locksRootPath string = "/kube-deploy/locks/"
 
 type lockFileContents struct {
-	Author string
-	Reason string	
+	Author      string
+	Reason      string
 	DateStarted string
 }
 
-func lockFileExists(filename string) (bool) {
+func lockFileExists(filename string) bool {
 	if _, err := os.Stat(locksRootPath + filename); os.IsNotExist(err) {
 		return false
 	}
 	return true
 }
 
-func readLockFile(filename string) (lockFileContents) {
+func readLockFile(filename string) lockFileContents {
 	fileBytes, err := ioutil.ReadFile(locksRootPath + filename)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Failed reading repo config file:", err)
@@ -44,15 +44,15 @@ func writeLockFile(filename, reason string) {
 		panic(err.Error())
 	}
 	lockFileData := lockFileContents{
-		Author: currentUser.Username,
-		Reason: reason,
+		Author:      currentUser.Username,
+		Reason:      reason,
 		DateStarted: time.Now().Format("Jan _2 15:04:05"),
 	}
 	jsonBytes, err := json.Marshal(lockFileData)
 	if err != nil {
 		panic(err.Error())
 	}
-	err = ioutil.WriteFile(locksRootPath + filename, jsonBytes, 0666)
+	err = ioutil.WriteFile(locksRootPath+filename, jsonBytes, 0666)
 	if err != nil {
 		panic(err.Error())
 	}

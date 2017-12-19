@@ -24,23 +24,26 @@ func main() {
 
 	fmt.Println("\n=> Welcome to kube-deploy.\n\n")
 
+	// TODO: for some reason, on a linux machine, if any command other than 'curl' is executed first, all
+	//		 subcommands fail - but sometimes, the first-run after 'go build' works. Who knows...
+	if exitCode := getCommandExitCode("curl", "-s --connect-timeout 3 https://ifconfig.co"); exitCode != 0 {
+		fmt.Println("=> Uh oh, looks like you're not connected to the internet (or maybe it's just too slow).")
+		os.Exit(1)
+	}
+
 	if ! runFlags.Bool("test-only") {
 		fmt.Println("=> First, I'm going to read the repo configuration file.")
 		repoConfig = initRepoConfig(fmt.Sprintf("%s/deploy.yaml", pwd))
 		fmt.Printf(`=> I found the following data:
-			Repository name: %s
-			Current branch: %s
-			HEAD hash: %s
+	Repository name: %s
+	Current branch: %s
+	HEAD hash: %s
 			
 => That means we're dealing with the image tag:
 	%s
-	`, repoConfig.Application.Name, repoConfig.GitBranch, repoConfig.BuildID, repoConfig.ImageFullPath)
-
-		if exitCode := getCommandExitCode("curl", "-s --connect-timeout 3 https://ifconfig.co"); exitCode != 0 {
-			fmt.Println("=> Uh oh, looks like you're not connected to the internet (or maybe it's just too slow).")
-			os.Exit(1)
-		}	
+`, repoConfig.Application.Name, repoConfig.GitBranch, repoConfig.BuildID, repoConfig.ImageFullPath)
 	}
+
 	// args has to have at least length 2, since the first element is the executable name
 	if len(args) >= 2 {
 		fmt.Printf("\n=> You've chosen the action '%s'. Proceeding...\n\n", args[1])

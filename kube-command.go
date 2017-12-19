@@ -138,7 +138,7 @@ func kubeRollingRestart() {
 	kubeAPIUpdateDeployment(&isLive)
 	streamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("rollout status --namespace=%s deployment/%s", repoConfig.Namespace, isLive.Name))
 
-	fmt.Printf("=> All pods have been recreated.\n\n")
+	fmt.Printf("\n=> All pods have been recreated.\n\n")
 }
 
 func kubeInstantRollback() {
