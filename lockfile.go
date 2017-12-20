@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/user"
 	"time"
 )
 
@@ -39,12 +38,9 @@ func readLockFile(filename string) lockFileContents {
 }
 
 func writeLockFile(filename, reason string) {
-	currentUser, err := user.Current()
-	if err != nil {
-		panic(err.Error())
-	}
+	currentUser := os.Getenv("USER")
 	lockFileData := lockFileContents{
-		Author:      currentUser.Username,
+		Author:      currentUser,
 		Reason:      reason,
 		DateStarted: time.Now().Format("Jan _2 15:04:05"),
 	}
