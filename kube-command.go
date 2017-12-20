@@ -13,10 +13,10 @@ import (
 
 func kubeStartRollout() {
 
-	lockBeforeRollout()
 	if !dockerImageExists() {
 		makeAndPushBuild()
 	}
+	lockBeforeRollout()
 
 	existingDeployment := kubeAPIGetSingleDeployment(repoConfig.ReleaseName)
 	if existingDeployment.Name != "" {

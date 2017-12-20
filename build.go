@@ -8,6 +8,8 @@ import (
 	//	"os/exec"
 )
 
+const testCommandImage = "mycujoo/gcloud-docker"
+
 func makeAndPushBuild() {
 	makeAndTestBuild()
 	if runFlags.Bool("force-push-image") {
@@ -93,11 +95,18 @@ func runBuildTests() {
 			// Wait two seconds for it to come alive
 			time.Sleep(2 * time.Second)
 			fmt.Printf("=> Executing test command: %s\n", testCommand)
-			commandSplit := strings.SplitN(testCommand, " ", 2)
+			// commandSplit := strings.SplitN(testCommand, " ", 2)
 			// Run the test command
-			if _, exitCode := streamAndGetCommandOutputAndExitCode(commandSplit[0], commandSplit[1]); exitCode != 0 {
-				teardownTest(containerName, true)
-				break
+			if testSet.Type == "in-test-container" {
+				if _, exitCode := streamAndGetCommandOutputAndExitCode("docker", fmt.Sprintf("exec %s %s", containerName, testCommand)); exitCode != 0 {
+					teardownTest(containerName, true)
+					break
+				}
+			} else {
+				if _, exitCode := streamAndGetCommandOutputAndExitCode("docker", fmt.Sprintf("run --rm --network container:%s %s %s", containerName, testCommandImage, testCommand)); exitCode != 0 {
+					teardownTest(containerName, true)
+					break
+				}
 			}
 		}
 		teardownTest(containerName, false)

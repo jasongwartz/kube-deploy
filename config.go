@@ -67,6 +67,7 @@ type testConfigMap struct {
 	Name       string   `yaml:"name"`
 	DockerArgs string   `yaml:"dockerArgs"`
 	DockerCommand string `yaml:"dockerCommand"`
+	Type string `yaml:"type"`
 	Commands   []string `yaml:"commands"`
 }
 
