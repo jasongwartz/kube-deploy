@@ -159,7 +159,7 @@ func kubeInstantRollback() {
 
 	isLive := isLiveDeployments.Items[0]
 	replicas := isLive.Spec.Replicas
-	if int(*replicas) >= 0 {
+	if int(*replicas) <= 0 {
 		oneReplica := int32(1)
 		replicas = &oneReplica
 	}
@@ -172,8 +172,10 @@ func kubeInstantRollback() {
 	kubeAPIUpdateDeployment(&rollbackTarget)
 	streamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("rollout status --namespace=%s deployment/%s", repoConfig.Namespace, rollbackTarget.Name))
 
-	fmt.Println("=> Wait for one minute to make sure that the old pods came up correctly.")
-	canaryHoldAndWait(60)
+	if ! runFlags.Bool("force") && ! runFlags.Bool("no-canary") {
+		fmt.Println("\n=> Wait for one minute to make sure that the old pods came up correctly.")
+		canaryHoldAndWait(60)
+	}
 
 	// Scale old pods down to zero
 	isLive.Spec.Replicas = new(int32)
