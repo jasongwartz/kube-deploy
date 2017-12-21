@@ -13,7 +13,7 @@ import (
 
 func kubeStartRollout() {
 
-	if !dockerImageExists() {
+	if !dockerImageExistsLocal() {
 		makeAndPushBuild()
 	}
 	lockBeforeRollout()

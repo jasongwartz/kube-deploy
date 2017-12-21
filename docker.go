@@ -1,27 +1,29 @@
 package main
 
 import (
-	"strings"
-	"os"
-	"text/tabwriter"
-	"fmt"
+	"io/ioutil"
 	"encoding/json"
+	"fmt"
+	"os"
+	"strings"
+	"text/tabwriter"
 )
+
 type gcloudDockerTag struct {
-	Digest string `json:"digest"`
-	Tags []string
+	Digest    string `json:"digest"`
+	Tags      []string
 	Timestamp struct {
 		Datetime string
 	}
 }
 
 func dockerListTags() {
-	if ! strings.Contains(repoConfig.DockerRepository.RegistryRoot, "gcr.io") {
+	if !strings.Contains(repoConfig.DockerRepository.RegistryRoot, "gcr.io") {
 		fmt.Println("=> Sorry, the 'list-tags' feature only works with Google Cloud Registry.")
 		os.Exit(1)
 	}
 
-	jsonTags := getCommandOutput("gcloud", fmt.Sprintf("container images list-tags --format=json eu.gcr.io/mycujoo-development/mycujoo-thumbs"))// %s", repoConfig.ImagePath))
+	jsonTags := getCommandOutput("gcloud", fmt.Sprintf("container images list-tags --format=json eu.gcr.io/mycujoo-development/mycujoo-thumbs")) // %s", repoConfig.ImagePath))
 	decodedTags := []gcloudDockerTag{}
 
 	if err := json.Unmarshal([]byte(jsonTags), &decodedTags); err != nil {
@@ -40,10 +42,38 @@ func dockerListTags() {
 	w.Flush()
 }
 
-func dockerImageExists() (bool) {
+func dockerImageExistsLocal() bool {
 	exitCode := getCommandExitCode("docker", fmt.Sprintf("inspect %s", repoConfig.ImageFullPath))
 
 	if exitCode != 0 {
+		return false
+	}
+	return true
+}
+
+func dockerImageExistsRemote() bool {
+	exitCode := getCommandExitCode("docker", fmt.Sprintf("pull %s", repoConfig.ImageFullPath))
+
+	if exitCode != 0 {
+		return false
+	}
+	return true
+}
+
+func dockerAmLoggedIn() bool {
+
+	dockerAuthFile, err := ioutil.ReadFile(os.Getenv("HOME") + "/.docker/config.json")
+	if err != nil {
+		fmt.Println("=> There was a problem reading your docker config file, so I don't know if you're logged in!")
+		panic(err.Error())
+	}
+
+	var dockerAuthData map[string]interface{}
+	json.Unmarshal(dockerAuthFile, &dockerAuthData)
+
+	authForThisRemote := dockerAuthData["auths"].(map[string]interface{})[repoConfig.DockerRepository.RegistryRoot]
+
+	if authForThisRemote == nil || authForThisRemote == "" {
 		return false
 	}
 	return true

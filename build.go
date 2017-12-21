@@ -19,6 +19,10 @@ func makeAndPushBuild() {
 	}
 }
 func makeAndTestBuild() {
+	if ! dockerAmLoggedIn() {
+		fmt.Println("=> Uh oh, you're not logged into the configured docker remote for this repo. You won't be able to push!")
+		os.Exit(1)
+	}
 	makeBuild()
 	runBuildTests()
 	tagDockerImage()

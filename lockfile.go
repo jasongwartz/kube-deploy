@@ -17,6 +17,15 @@ type lockFileContents struct {
 }
 
 func lockFileExists(filename string) bool {
+
+	// Check if locks directory exists
+	if _, err := os.Stat(locksRootPath); os.IsNotExist(err) {
+		// If not, make the directory and return false (lockfiles can't exist if the directory doesn't)
+		os.MkdirAll(locksRootPath, 0777)
+		return false
+	}
+
+	// Check if lock file exists - error if not
 	if _, err := os.Stat(locksRootPath + filename); os.IsNotExist(err) {
 		return false
 	}
