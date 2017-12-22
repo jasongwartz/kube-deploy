@@ -13,10 +13,17 @@ import (
 
 func kubeStartRollout() {
 
-	if !dockerImageExistsLocal() {
+	fmt.Println("=> Checking to see if the docker image exists on the remote repository (so we know whether we have to build an image or not).\n=> This might take a minute...")
+	if dockerImageExistsRemote() {
+		fmt.Println("=> Looks like an image already exists on the remote, so we'll use that.")
+	} else {
+		fmt.Println("=> No image exists, so we'll build one now.")
 		makeAndPushBuild()
 	}
+	fmt.Print("=> Starting rollout.\n\n")
 	lockBeforeRollout()
+
+	skipCanary := runFlags.Bool("no-canary") || runFlags.Bool("force")
 
 	existingDeployment := kubeAPIGetSingleDeployment(repoConfig.ReleaseName)
 	if existingDeployment.Name != "" {
@@ -47,46 +54,48 @@ func kubeStartRollout() {
 	desiredPods := *thisDeployment.Spec.Replicas
 
 	// Add the 'kubedeploy-releasetime' label (which will force the deployment to recreate pods if it already existed)
-	kubeAPIAddDeploymentLabel(thisDeployment, "kubedeploy-releasetime", strconv.FormatInt(rolloutStartTime.Unix(), 10))
+	thisDeployment.Spec.Template.Labels["kubedeploy-releasetime"] = strconv.FormatInt(rolloutStartTime.Unix(), 10)
+
+	// Quickly scale to only one pod
+	firstCanaryPods := int32(1)
+	fmt.Printf("=> Scaling to first canary point: %d pod(s)\n", firstCanaryPods)
+	thisDeployment.Spec.Replicas = &firstCanaryPods
+
+	// Update with release time and firstCanaryPods replicas
 	thisDeployment = kubeAPIUpdateDeployment(thisDeployment)
 
-	if runFlags.Bool("no-canary") || runFlags.Bool("force") {
-		streamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("rollout status --namespace=%s deployment/%s", repoConfig.Namespace, repoConfig.ReleaseName))
-	} else {
-		// Quickly scale to only one pod
-		firstCanaryPods := int32(1)
-		fmt.Printf("=> Scaling to first canary point: %d pod(s)\n", firstCanaryPods)
-		thisDeployment.Spec.Replicas = &firstCanaryPods
-		thisDeployment = kubeAPIUpdateDeployment(thisDeployment)
+	// Make sure first pod gets started
+	streamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("rollout status --namespace=%s deployment/%s", repoConfig.Namespace, repoConfig.ReleaseName))
 
-		// Make sure first pod gets started
-		streamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("rollout status --namespace=%s deployment/%s", repoConfig.Namespace, repoConfig.ReleaseName))
-
+	if !skipCanary{
 		// Pause to watch monitors and make sure that the 1 pod deploy was successful
 		fmt.Println("\n=> Wait for at least one minute to make sure the new pod(s) started okay, and is getting some traffic.")
 		canaryHoldAndWait(60)
+	}
 
-		if desiredPods > firstCanaryPods { // Skip second canary point if no new pods are needed
-			// Scale up to desired number of pods in new canary release
-			fmt.Printf("=> Scaling to next canary point: %d pod(s)\n=> This should give the new pods roughly 50%% of traffic (if the old deployment was the same size).\n", desiredPods)
+	if desiredPods > firstCanaryPods { // Skip second canary point if no new pods are needed
+		// Scale up to desired number of pods in new canary release
+		fmt.Printf("=> Scaling to next canary point: %d pod(s)\n=> This should give the new pods roughly 50%% of traffic (if the old deployment was the same size).\n", desiredPods)
 
-			thisDeployment = kubeAPIGetSingleDeployment(repoConfig.ReleaseName)
-			thisDeployment.Spec.Replicas = &desiredPods
-			thisDeployment = kubeAPIUpdateDeployment(thisDeployment)
-			//			streamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("scale --namespace=%s deployment/%s --replicas=%d", repoConfig.Namespace, repoConfig.ReleaseName, desiredPods))
-			streamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("rollout status --namespace=%s deployment/%s", repoConfig.Namespace, repoConfig.ReleaseName))
+		thisDeployment = kubeAPIGetSingleDeployment(repoConfig.ReleaseName)
+		thisDeployment.Spec.Replicas = &desiredPods
+		thisDeployment = kubeAPIUpdateDeployment(thisDeployment)
+		//			streamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("scale --namespace=%s deployment/%s --replicas=%d", repoConfig.Namespace, repoConfig.ReleaseName, desiredPods))
+		streamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("rollout status --namespace=%s deployment/%s", repoConfig.Namespace, repoConfig.ReleaseName))
 
+		if !skipCanary {
 			fmt.Println("\n=> Now, let's wait for 5 minutes, watch the monitors, and let everything simmer to make sure it looks good.")
 			canaryHoldAndWait(300)
 		}
+	}
 
-		// Scale down pods in old release
-		if mostRecentRelease.Name != "" {
-			fmt.Println("=> Scaling down old deployment, leaving only new deployment pods.")
-			mostRecentRelease.Spec.Replicas = new(int32) // new() returns default value, which is 0 for int32
-			mostRecentRelease = *kubeAPIUpdateDeployment(&mostRecentRelease)
+	// Scale down pods in old release
+	if mostRecentRelease.Name != "" {
+		fmt.Println("\n=> Scaling down old deployment, leaving only new deployment pods.")
+		mostRecentRelease.Spec.Replicas = new(int32) // new() returns default value, which is 0 for int32
+		mostRecentRelease = *kubeAPIUpdateDeployment(&mostRecentRelease)
+		if !skipCanary {
 			fmt.Println("=> Now, let's wait for another 5 minutes, watch the monitors again, amd make sure we're confident with the new deployment.")
-
 			canaryHoldAndWait(300)
 		}
 	}
@@ -102,6 +111,7 @@ func kubeStartRollout() {
 	if mostRecentRelease.Name != "" {
 		fmt.Printf("=> Tagging release %s with tag 'instant-rollback-target'.\n=> You can rollback to this in one command with `kube-deploy rollback`.\n", mostRecentRelease.Name)
 		// kubeAPIAddDeploymentLabel(mostRecentRelease, "kubedeploy-rollback-target", "true")
+		mostRecentRelease = *kubeAPIGetSingleDeployment(mostRecentRelease.Name)
 		mostRecentRelease.Labels["kubedeploy-rollback-target"] = "true"
 		delete(mostRecentRelease.Labels, "kubedeploy-is-live")
 		kubeAPIUpdateDeployment(&mostRecentRelease)
@@ -120,6 +130,8 @@ func kubeStartRollout() {
 	// Clean up workdir and remove lockfile
 	kubeRemoveTemplates()
 	unlockAfterRollout()
+
+	fmt.Print("\n=> You're all done, great job!\n\n")
 }
 
 func kubeRollingRestart() {
