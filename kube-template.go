@@ -4,9 +4,34 @@ import (
 	"bytes"
 	"os"
 	"fmt"
+	"io/ioutil"
 	"strings"
 	"text/template"
 )
+
+
+// Returns a list of the filenames of the filled-out templates
+func kubeMakeTemplates() []string {
+	os.MkdirAll(repoConfig.PWD+"/.kubedeploy-temp", 0755)
+
+	var filePaths []string
+	for _, filename := range getKubeTemplateFiles() {
+		fmt.Printf("=> Generating YAML from template for %s\n", filename)
+		kubeFileTemplated := runConsulTemplate(repoConfig.Application.PathToKubernetesFiles + "/" + filename)
+
+		tempFilePath := repoConfig.PWD + "/.kubedeploy-temp/" + filename
+		err := ioutil.WriteFile(tempFilePath, []byte(kubeFileTemplated), 0644)
+		if err != nil {
+			fmt.Println(err)
+		}
+		filePaths = append(filePaths, tempFilePath)
+	}
+	return filePaths
+}
+
+func kubeRemoveTemplates() {
+	os.RemoveAll(repoConfig.PWD + "/.kubedeploy-temp")
+}
 
 func getKubeTemplateFiles() ([]string) {
 	return strings.Split(getCommandOutput("ls", repoConfig.Application.PathToKubernetesFiles), "\n")

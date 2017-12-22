@@ -101,16 +101,25 @@ func runBuildTests() {
 			fmt.Printf("=> Executing test command: %s\n", testCommand)
 			// commandSplit := strings.SplitN(testCommand, " ", 2)
 			// Run the test command
-			if testSet.Type == "in-test-container" {
+			switch t := testSet.Type; t {
+			case "in-test-container":
 				if _, exitCode := streamAndGetCommandOutputAndExitCode("docker", fmt.Sprintf("exec %s %s", containerName, testCommand)); exitCode != 0 {
 					teardownTest(containerName, true)
 					break
 				}
-			} else {
+			case "in-external-container":
 				if _, exitCode := streamAndGetCommandOutputAndExitCode("docker", fmt.Sprintf("run --rm --network container:%s %s %s", containerName, testCommandImage, testCommand)); exitCode != 0 {
 					teardownTest(containerName, true)
 					break
 				}
+			case "on-host":
+				commandSplit := strings.SplitN(testCommand, " ", 2)
+				if _, exitCode := streamAndGetCommandOutputAndExitCode(commandSplit[0], commandSplit[1]); exitCode != 0 {
+					teardownTest(containerName, true)
+					break
+				}
+			default:
+				fmt.Println("=> Can't run your test case if I don't know where to run it! Make sure to set 'type' to one of: 'in-test-container', 'in-external-container', 'on-host'.")
 			}
 		}
 		teardownTest(containerName, false)

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"k8s.io/api/extensions/v1beta1"
 	"os"
 	"sort"
@@ -25,8 +24,7 @@ func kubeStartRollout() {
 
 	skipCanary := runFlags.Bool("no-canary") || runFlags.Bool("force")
 
-	existingDeployment := kubeAPIGetSingleDeployment(repoConfig.ReleaseName)
-	if existingDeployment.Name != "" {
+	if existingDeployment := kubeAPIGetSingleDeployment(repoConfig.ReleaseName); existingDeployment.Name != "" {
 		fmt.Println("=> Looks like there is an existing deployment by this name, so we'll just update/replace it.\n")
 	}
 
@@ -49,6 +47,8 @@ func kubeStartRollout() {
 	for _, f := range kubeMakeTemplates() {
 		streamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("apply -f %s", f))
 	}
+	kubeRemoveTemplates()
+
 	// Find the just-created deployment
 	thisDeployment := kubeAPIGetSingleDeployment(repoConfig.ReleaseName)
 	desiredPods := *thisDeployment.Spec.Replicas
@@ -70,7 +70,9 @@ func kubeStartRollout() {
 	if !skipCanary{
 		// Pause to watch monitors and make sure that the 1 pod deploy was successful
 		fmt.Println("\n=> Wait for at least one minute to make sure the new pod(s) started okay, and is getting some traffic.")
-		canaryHoldAndWait(60)
+		if y := canaryHoldAndWait(60); y == false {
+			safeBailOut(kubeAPIGetSingleDeployment(repoConfig.ReleaseName), &mostRecentRelease, &desiredPods)
+		}
 	}
 
 	if desiredPods > firstCanaryPods { // Skip second canary point if no new pods are needed
@@ -80,12 +82,13 @@ func kubeStartRollout() {
 		thisDeployment = kubeAPIGetSingleDeployment(repoConfig.ReleaseName)
 		thisDeployment.Spec.Replicas = &desiredPods
 		thisDeployment = kubeAPIUpdateDeployment(thisDeployment)
-		//			streamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("scale --namespace=%s deployment/%s --replicas=%d", repoConfig.Namespace, repoConfig.ReleaseName, desiredPods))
 		streamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("rollout status --namespace=%s deployment/%s", repoConfig.Namespace, repoConfig.ReleaseName))
 
 		if !skipCanary {
 			fmt.Println("\n=> Now, let's wait for 5 minutes, watch the monitors, and let everything simmer to make sure it looks good.")
-			canaryHoldAndWait(300)
+			if y := canaryHoldAndWait(300); y == false {
+				safeBailOut(kubeAPIGetSingleDeployment(repoConfig.ReleaseName), &mostRecentRelease, &desiredPods)
+			}
 		}
 	}
 
@@ -94,9 +97,13 @@ func kubeStartRollout() {
 		fmt.Println("\n=> Scaling down old deployment, leaving only new deployment pods.")
 		mostRecentRelease.Spec.Replicas = new(int32) // new() returns default value, which is 0 for int32
 		mostRecentRelease = *kubeAPIUpdateDeployment(&mostRecentRelease)
+		streamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("rollout status --namespace=%s deployment/%s", repoConfig.Namespace, mostRecentRelease.Name))
+
 		if !skipCanary {
 			fmt.Println("=> Now, let's wait for another 5 minutes, watch the monitors again, amd make sure we're confident with the new deployment.")
-			canaryHoldAndWait(300)
+			if y := canaryHoldAndWait(300); y == false {
+				safeBailOut(kubeAPIGetSingleDeployment(repoConfig.ReleaseName), kubeAPIGetSingleDeployment(mostRecentRelease.Name), &desiredPods)
+			}
 		}
 	}
 
@@ -132,6 +139,30 @@ func kubeStartRollout() {
 	unlockAfterRollout()
 
 	fmt.Print("\n=> You're all done, great job!\n\n")
+}
+
+func safeBailOut(thisDeployment *v1beta1.Deployment, mostRecentRelease *v1beta1.Deployment, pods *int32) {
+	fmt.Println("=> Okay, let's try and bail out safely.")
+
+	if mostRecentRelease.Name != "" {
+		fmt.Printf("=> Scaling the previous release %s back up to %d pods.\n", mostRecentRelease.Name, pods)
+		mostRecentRelease.Spec.Replicas = pods
+		mostRecentRelease.Labels["kubedeploy-is-live"] = "true"
+		delete(mostRecentRelease.Labels, "kubedeploy-rollback-target")
+		kubeAPIUpdateDeployment(mostRecentRelease)
+		streamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("rollout status --namespace=%s deployment/%s", repoConfig.Namespace, mostRecentRelease.Name))
+
+		fmt.Println("=> Deleting the deployment we created...")
+		kubeAPIDeleteDeployment(thisDeployment)
+	} else {
+		// There was no 'most recent' release
+		fmt.Println("=> Oh no, I don't have anywhere to roll back to! I'll leave things as they are now, but you'll need to clean up yourself, or do another rollout forward.")
+	}
+
+	kubeRemoveTemplates()
+	unlockAfterRollout()
+	fmt.Print("=> Sorry it didn't work out - better luck next time!\n\n")
+	os.Exit(0)
 }
 
 func kubeRollingRestart() {
@@ -230,37 +261,17 @@ func kubeListDeployments() {
 	w.Flush()
 }
 
-func kubeRemoveTemplates() {
-	os.RemoveAll(repoConfig.PWD + "/.kubedeploy-temp")
-}
-
-// Returns a list of the filenames of the filled-out templates
-func kubeMakeTemplates() []string {
-	os.MkdirAll(repoConfig.PWD+"/.kubedeploy-temp", 0755)
-
-	var filePaths []string
-	for _, filename := range getKubeTemplateFiles() {
-		fmt.Printf("=> Generating YAML from template for %s\n", filename)
-		kubeFileTemplated := runConsulTemplate(repoConfig.Application.PathToKubernetesFiles + "/" + filename)
-
-		tempFilePath := repoConfig.PWD + "/.kubedeploy-temp/" + filename
-		err := ioutil.WriteFile(tempFilePath, []byte(kubeFileTemplated), 0644)
-		if err != nil {
-			fmt.Println(err)
-		}
-		filePaths = append(filePaths, tempFilePath)
-	}
-	return filePaths
-}
-
 func canaryHoldAndWait(waitTimeSeconds int) bool {
 	firstPromptTime := time.Now()
 	printablePromptTime := firstPromptTime.Format("Jan _2 15:04:05")
-	askToProceed(fmt.Sprintf("%s: You are at a canary point.", printablePromptTime), "Well, you bailed out. I'm leaving things in an unclean state, so you'll have to clean up yourself.")
+	proceed := askToProceed(fmt.Sprintf("%s: You are at a canary point.", printablePromptTime))
+	if proceed == false {
+		return false
+	}
 	elasped := int(time.Since(firstPromptTime).Seconds())
-
 	if elasped < waitTimeSeconds {
-		askToProceed("=> Bad behaviour - you're back too quickly. Honestly, are you really sure?", "Okay, I guess you weren't sure. Make sure to clean up your half-progress.")
+		proceed := askToProceed("=> Bad behaviour - you're back too quickly. Honestly, are you really sure?")
+		return proceed	
 	}
 	return true
 }

@@ -46,7 +46,7 @@ func main() {
 
 	// args has to have at least length 2, since the first element is the executable name
 	if len(args) >= 2 {
-		fmt.Printf("\n=> You've chosen the action '%s'. Proceeding...\n\n", args[1])
+		fmt.Printf("\n=> You've chosen the action '%s'. Proceeding...\n----------\n\n", args[1])
 
 		switch c := args[1]; c {
 		case "install":
@@ -74,6 +74,12 @@ func main() {
 			kubeListDeployments()
 		case "list-tags":
 			dockerListTags()
+		
+		case "status":
+			if status := isLocked(); status == false {
+				fmt.Print("=> No rollout in progress for this repo and branch.\n\n")
+			}
+			
 
 		case "lock": writeLockFile(repoConfig.Application.Name, "manually blocked rollouts for " + repoConfig.Application.Name)
 		case "unlock": deleteLockFile(repoConfig.Application.Name)
@@ -97,12 +103,12 @@ func main() {
 	}
 }
 
-func askToProceed(promptMessage string, exitMessage string) {
+func askToProceed(promptMessage string) (bool) {
 	fmt.Printf("=> %s\n=> Press 'y' to proceed, anything else to exit.\n>>> ", promptMessage)
 	if proceed, _ := reader.ReadString('\n'); proceed != "y\n" && proceed != "Y\n" {
-		fmt.Println("=> " + exitMessage)
-		os.Exit(0)
+		return false
 	}
+	return true
 }
 
 func installDependencies() {
