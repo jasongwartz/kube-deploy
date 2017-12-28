@@ -71,10 +71,21 @@ func dockerAmLoggedIn() bool {
 	var dockerAuthData map[string]interface{}
 	json.Unmarshal(dockerAuthFile, &dockerAuthData)
 
-	authForThisRemote := dockerAuthData["auths"].(map[string]interface{})[repoConfig.DockerRepository.RegistryRoot]
+	auths := dockerAuthData["auths"].(map[string]interface{})
 
-	if authForThisRemote == nil || authForThisRemote == "" {
-		return false
+	// If no RegistryRoot is specified, look for dockerhub details
+	var authToLookFor string
+	if repoConfig.DockerRepository.RegistryRoot == "" {
+		authToLookFor = "docker"
+	} else {
+		authToLookFor = repoConfig.DockerRepository.RegistryRoot
 	}
-	return true
+
+	for remoteName := range auths {
+		if remoteName == authToLookFor || remoteName == "https://" + authToLookFor {
+			return true
+		}
+	}
+
+	return false
 }
