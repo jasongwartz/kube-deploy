@@ -61,7 +61,12 @@ func makeBuild() {
 	time.Sleep(1 * time.Second)
 
 	// Run docker build
-	streamAndGetCommandOutput("docker", fmt.Sprintf("build -t %s %s", repoConfig.ImageName, repoConfig.PWD))
+	if exitCode := streamAndGetCommandExitCode(
+		"docker",
+		fmt.Sprintf("build -t %s %s", repoConfig.ImageName, repoConfig.PWD),
+	); exitCode != 0 {
+		os.Exit(1)
+	}
 }
 
 func runBuildTests() {
@@ -102,24 +107,27 @@ func runBuildTests() {
 			// commandSplit := strings.SplitN(testCommand, " ", 2)
 			// Run the test command
 			switch t := testSet.Type; t {
+			case "on-host":
+				commandSplit := strings.SplitN(testCommand, " ", 2)
+				if exitCode := streamAndGetCommandExitCode(commandSplit[0], commandSplit[1]); exitCode != 0 {
+					teardownTest(containerName, true)
+					break
+				}
 			case "in-test-container":
-				if _, exitCode := streamAndGetCommandOutputAndExitCode("docker", fmt.Sprintf("exec %s %s", containerName, testCommand)); exitCode != 0 {
+				if exitCode := streamAndGetCommandExitCode("docker", fmt.Sprintf("exec %s %s", containerName, testCommand)); exitCode != 0 {
 					teardownTest(containerName, true)
 					break
 				}
 			case "in-external-container":
-				if _, exitCode := streamAndGetCommandOutputAndExitCode("docker", fmt.Sprintf("run --rm --network container:%s %s %s", containerName, testCommandImage, testCommand)); exitCode != 0 {
-					teardownTest(containerName, true)
-					break
-				}
-			case "on-host":
-				commandSplit := strings.SplitN(testCommand, " ", 2)
-				if _, exitCode := streamAndGetCommandOutputAndExitCode(commandSplit[0], commandSplit[1]); exitCode != 0 {
+				if exitCode := streamAndGetCommandExitCode("docker", fmt.Sprintf("run --rm --network container:%s %s %s", containerName, testCommandImage, testCommand)); exitCode != 0 {
 					teardownTest(containerName, true)
 					break
 				}
 			default:
-				fmt.Println("=> Can't run your test case if I don't know where to run it! Make sure to set 'type' to one of: 'in-test-container', 'in-external-container', 'on-host'.")
+				fmt.Printf("=> Since you didn't specify where to run test %s, I'll run it in a test container (attached to the same network).\n", testCommand)
+				if exitCode := streamAndGetCommandExitCode("docker", fmt.Sprintf("run --rm --network container:%s %s %s", containerName, testCommandImage, testCommand)); exitCode != 0 {
+					teardownTest(containerName, true)
+				}
 			}
 		}
 		teardownTest(containerName, false)
