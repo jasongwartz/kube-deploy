@@ -74,26 +74,33 @@ func runBuildTests() {
 	tests := repoConfig.Tests
 	for _, testSet := range tests {
 		fmt.Printf("\n\n=> Setting up test set: %s\n", testSet.Name)
-		fmt.Printf("=> Starting docker image %s...\n", repoConfig.ImageName)
-
-		var dockerRunCommand string
-		if testSet.DockerArgs != "" {
-			dockerRunCommand = fmt.Sprintf("%s %s", testSet.DockerArgs, repoConfig.ImageName)
-		} else {
-			dockerRunCommand = repoConfig.ImageName
-		}
-		if testSet.DockerCommand != "" {
-			dockerRunCommand = dockerRunCommand + " " + testSet.DockerCommand
-		}
 
 		// Start the test container
-		containerName, exitCode := streamAndGetCommandOutputAndExitCode("docker",
-			strings.Join([]string{"run", dockerRunCommand}, " "))
-		if runFlags.Bool("debug") {
-			fmt.Println(containerName)
-		}
-		if exitCode != 0 {
-			teardownTest(containerName, true)
+		var (
+			containerName string
+			exitCode int
+		)
+		if testSet.Type != "host-only" { // 'host-only' skips running the test docker container (for env setup)
+			fmt.Printf("=> Starting docker image: %s\n", repoConfig.ImageName)
+
+			var dockerRunCommand string
+			if testSet.DockerArgs != "" {
+				dockerRunCommand = fmt.Sprintf("%s %s", testSet.DockerArgs, repoConfig.ImageName)
+			} else {
+				dockerRunCommand = repoConfig.ImageName
+			}
+			if testSet.DockerCommand != "" {
+				dockerRunCommand = dockerRunCommand + " " + testSet.DockerCommand
+			}
+
+			containerName, exitCode = streamAndGetCommandOutputAndExitCode("docker",
+				strings.Join([]string{"run", dockerRunCommand}, " "))
+			if runFlags.Bool("debug") {
+				fmt.Println(containerName)
+			}
+			if exitCode != 0 {
+				teardownTest(containerName, true)
+			}
 		}
 
 		// Wait two seconds for it to come alive
@@ -107,7 +114,7 @@ func runBuildTests() {
 			// commandSplit := strings.SplitN(testCommand, " ", 2)
 			// Run the test command
 			switch t := testSet.Type; t {
-			case "on-host":
+			case "on-host", "host-only":
 				commandSplit := strings.SplitN(testCommand, " ", 2)
 				if exitCode := streamAndGetCommandExitCode(commandSplit[0], commandSplit[1]); exitCode != 0 {
 					teardownTest(containerName, true)
@@ -135,13 +142,15 @@ func runBuildTests() {
 }
 
 func teardownTest(containerName string, exit bool) {
-	fmt.Println("=> Stopping test container.")
-	getCommandOutput("docker", fmt.Sprintf("stop %s", containerName))
-	if runFlags.Bool("keep-test-container") {
-		fmt.Println("=> Leaving the test container without deleting, like you asked.\n")
-	} else {
-		fmt.Println("=> Removing test container.")
-		getCommandOutput("docker", fmt.Sprintf("rm %s", containerName))
+	if containerName != "" {
+		fmt.Println("=> Stopping test container.")
+		getCommandOutput("docker", fmt.Sprintf("stop %s", containerName))
+		if runFlags.Bool("keep-test-container") {
+			fmt.Println("=> Leaving the test container without deleting, like you asked.\n")
+		} else {
+			fmt.Println("=> Removing test container.")
+			getCommandOutput("docker", fmt.Sprintf("rm %s", containerName))
+		}
 	}
 	if exit {
 		os.Exit(1)
