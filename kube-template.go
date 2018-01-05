@@ -14,8 +14,14 @@ import (
 func kubeMakeTemplates() []string {
 	os.MkdirAll(repoConfig.PWD+"/.kubedeploy-temp", 0755)
 
+	templateFiles, err := ioutil.ReadDir(repoConfig.Application.PathToKubernetesFiles)
+	if err != nil {
+		fmt.Println("=> Unable to get list of kubernetes files.")
+	}
+
 	var filePaths []string
-	for _, filename := range getKubeTemplateFiles() {
+	for _, filePointer := range templateFiles {
+		filename := filePointer.Name()
 		fmt.Printf("=> Generating YAML from template for %s\n", filename)
 		kubeFileTemplated := runConsulTemplate(repoConfig.Application.PathToKubernetesFiles + "/" + filename)
 
@@ -31,10 +37,6 @@ func kubeMakeTemplates() []string {
 
 func kubeRemoveTemplates() {
 	os.RemoveAll(repoConfig.PWD + "/.kubedeploy-temp")
-}
-
-func getKubeTemplateFiles() ([]string) {
-	return strings.Split(getCommandOutput("ls", repoConfig.Application.PathToKubernetesFiles), "\n")
 }
 
 func runConsulTemplate(filename string) (string) {
