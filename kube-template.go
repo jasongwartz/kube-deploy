@@ -2,13 +2,12 @@ package main
 
 import (
 	"bytes"
-	"os"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"strings"
 	"text/template"
 )
-
 
 // Returns a list of the filenames of the filled-out templates
 func kubeMakeTemplates() []string {
@@ -39,11 +38,11 @@ func kubeRemoveTemplates() {
 	os.RemoveAll(repoConfig.PWD + "/.kubedeploy-temp")
 }
 
-func runConsulTemplate(filename string) (string) {
-	vaultAddr := os.Getenv("VAULT_ADDR");
-	if  vaultAddr != "" {
+func runConsulTemplate(filename string) string {
+	vaultAddr := os.Getenv("VAULT_ADDR")
+	if vaultAddr != "" {
 		vaultAddr = fmt.Sprintf("--vault-renew-token=false --vault-retry=false --vault-addr %s", vaultAddr)
-		os.Setenv("SECRETS_LOCATION", "production")// repoConfig.EnvironmentName)
+		os.Setenv("SECRETS_LOCATION", repoConfig.EnvironmentName)
 	}
 	consulTemplateArgs := fmt.Sprintf("%s -template %s -once -dry", vaultAddr, filename)
 
