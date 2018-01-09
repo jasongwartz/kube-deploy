@@ -2,12 +2,13 @@ package main
 
 import (
 	"fmt"
-	"k8s.io/api/extensions/v1beta1"
 	"os"
 	"sort"
 	"strconv"
 	"text/tabwriter"
 	"time"
+
+	"k8s.io/api/extensions/v1beta1"
 )
 
 func kubeStartRollout() {
@@ -45,7 +46,12 @@ func kubeStartRollout() {
 	rolloutStartTime := time.Now()
 	// Make the template files, tag deployment with release ID
 	for _, f := range kubeMakeTemplates() {
-		streamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("apply -f %s", f))
+		exitCode := streamAndGetCommandExitCode("kubectl", fmt.Sprintf("apply -f %s", f))
+		if exitCode != 0 {
+			fmt.Println("=> Uh oh, there was an problem during templating. You should fix this first.")
+			kubeRemoveTemplates()
+			os.Exit(1)
+		}
 	}
 	kubeRemoveTemplates()
 
@@ -67,7 +73,7 @@ func kubeStartRollout() {
 	// Make sure first pod gets started
 	streamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("rollout status --namespace=%s deployment/%s", repoConfig.Namespace, repoConfig.ReleaseName))
 
-	if !skipCanary{
+	if !skipCanary {
 		// Pause to watch monitors and make sure that the 1 pod deploy was successful
 		fmt.Println("\n=> Wait for at least one minute to make sure the new pod(s) started okay, and is getting some traffic.")
 		if y := canaryHoldAndWait(60); y == false {
@@ -215,7 +221,7 @@ func kubeInstantRollback() {
 	kubeAPIUpdateDeployment(&rollbackTarget)
 	streamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("rollout status --namespace=%s deployment/%s", repoConfig.Namespace, rollbackTarget.Name))
 
-	if ! runFlags.Bool("force") && ! runFlags.Bool("no-canary") {
+	if !runFlags.Bool("force") && !runFlags.Bool("no-canary") {
 		fmt.Println("\n=> Wait for one minute to make sure that the old pods came up correctly.")
 		canaryHoldAndWait(60)
 	}
@@ -271,7 +277,7 @@ func canaryHoldAndWait(waitTimeSeconds int) bool {
 	elasped := int(time.Since(firstPromptTime).Seconds())
 	if elasped < waitTimeSeconds {
 		proceed := askToProceed("=> Bad behaviour - you're back too quickly. Honestly, are you really sure?")
-		return proceed	
+		return proceed
 	}
 	return true
 }
