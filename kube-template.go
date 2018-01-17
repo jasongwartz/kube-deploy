@@ -35,7 +35,11 @@ func kubeMakeTemplates() []string {
 }
 
 func kubeRemoveTemplates() {
-	os.RemoveAll(repoConfig.PWD + "/.kubedeploy-temp")
+	if runFlags.Bool("keep-kubernetes-template-files") {
+		fmt.Println("=> Leaving the templated files, like you asked.")
+	} else {
+		os.RemoveAll(repoConfig.PWD + "/.kubedeploy-temp")
+	}
 }
 
 func runConsulTemplate(filename string) string {

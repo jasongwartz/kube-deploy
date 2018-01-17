@@ -19,7 +19,7 @@ func makeAndPushBuild() {
 	}
 }
 func makeAndTestBuild() {
-	if ! dockerAmLoggedIn() {
+	if !dockerAmLoggedIn() {
 		fmt.Println("=> Uh oh, you're not logged into the configured docker remote for this repo. You won't be able to push!")
 		os.Exit(1)
 	}
@@ -48,7 +48,7 @@ func checkWorkingDirectory() bool {
 
 func makeBuild() {
 	// Builds the docker image and tags it with the image short-name (ie. without the registry path)
-	if repoConfig.EnvironmentName == "production" {
+	if repoConfig.ClusterName == "production" {
 		if !checkWorkingDirectory() {
 			fmt.Println("=> Oh no! You have uncommited changes in the working tree. Please commit or stash before deploying to production.")
 			fmt.Println("=> If you're really, really sure, you can override this warning with the '--override-dirty-workdir' flag.")
@@ -78,7 +78,7 @@ func runBuildTests() {
 		// Start the test container
 		var (
 			containerName string
-			exitCode int
+			exitCode      int
 		)
 		if testSet.Type != "host-only" { // 'host-only' skips running the test docker container (for env setup)
 			fmt.Printf("=> Starting docker image: %s\n", repoConfig.ImageName)

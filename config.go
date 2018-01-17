@@ -1,15 +1,15 @@
 package main
 
 import (
-	"k8s.io/client-go/kubernetes"
 	"fmt"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
 	"regexp"
 	"strings"
-)
 
+	"gopkg.in/yaml.v2"
+	"k8s.io/client-go/kubernetes"
+)
 
 // func initUserConfig(configFilePath string) userConfigMap {
 
@@ -35,27 +35,27 @@ import (
 type repoConfigMap struct {
 	DockerRepository struct {
 		DevelopmentRepositoryName string `yaml:"developmentRepositoryName"`
-		ProductionRepositoryName string `yaml:"productionRepositoryName"`
-		RegistryRoot string `yaml:"registryRoot"`
+		ProductionRepositoryName  string `yaml:"productionRepositoryName"`
+		RegistryRoot              string `yaml:"registryRoot"`
 	} `yaml:"dockerRepository"`
 	Application struct {
-		Name    string `yaml:"name"`
-		Version string `yaml:"version"`
+		Name                  string `yaml:"name"`
+		Version               string `yaml:"version"`
 		PathToKubernetesFiles string `yaml:"pathToKubernetesFiles"`
-		KubernetesTemplate struct {
-			GlobalVariables []string `yaml:"globalVariables"`
-			BranchVariables map[string][]string `yaml:"branchVariables"`			
+		KubernetesTemplate    struct {
+			GlobalVariables []string            `yaml:"globalVariables"`
+			BranchVariables map[string][]string `yaml:"branchVariables"`
 		} `yaml:"kubernetesTemplate"`
 	} `yaml:"application"`
 	DockerRepositoryName string
-	EnvironmentName      string // 'production' (which includes 'staging') or 'development'
+	EnvironmentName      string // 'production', 'staging', or 'development'
+	ClusterName          string // 'production' or 'development' - 'staging' should use the production cluster
 	Namespace            string
 	GitBranch            string
 	BuildID              string
 	ImageTag             string
 	ImageName            string
-	ImagePath            string
-	ImageFullPath        string
+	ImageFullPath        string `yaml:"imageFullPath"`
 	PWD                  string
 	ReleaseName          string
 	KubeAPIClientSet     *kubernetes.Clientset
@@ -64,11 +64,11 @@ type repoConfigMap struct {
 
 // testConfigMap : layout of the details for running a single test step (during build)
 type testConfigMap struct {
-	Name       string   `yaml:"name"`
-	DockerArgs string   `yaml:"dockerArgs"`
-	DockerCommand string `yaml:"dockerCommand"`
-	Type string `yaml:"type"`
-	Commands   []string `yaml:"commands"`
+	Name          string   `yaml:"name"`
+	DockerArgs    string   `yaml:"dockerArgs"`
+	DockerCommand string   `yaml:"dockerCommand"`
+	Type          string   `yaml:"type"`
+	Commands      []string `yaml:"commands"`
 }
 
 func initRepoConfig(configFilePath string) repoConfigMap {
@@ -94,32 +94,39 @@ func initRepoConfig(configFilePath string) repoConfigMap {
 	switch branch := repoConfig.GitBranch; branch {
 	case "production":
 		repoConfig.DockerRepositoryName = repoConfig.DockerRepository.ProductionRepositoryName
-		repoConfig.EnvironmentName = "production"
-		repoConfig.Namespace = "production"
+		repoConfig.ClusterName = "production"
+		if repoConfig.Namespace == "" {
+			repoConfig.Namespace = "production"
+		}
 	case "master":
 		repoConfig.DockerRepositoryName = repoConfig.DockerRepository.ProductionRepositoryName
-		repoConfig.EnvironmentName = "production" // deploy to production cluster
-		repoConfig.Namespace = "staging"
+		repoConfig.ClusterName = "production" // deploy to production cluster
+		if repoConfig.Namespace == "" {
+			repoConfig.Namespace = "staging"
+		}
 	default:
 		repoConfig.DockerRepositoryName = repoConfig.DockerRepository.DevelopmentRepositoryName
-		repoConfig.EnvironmentName = "development"
-		repoConfig.Namespace = "development"
+		repoConfig.ClusterName = "development"
+		if repoConfig.Namespace == "" {
+			repoConfig.Namespace = "development"
+		}
 	}
+	repoConfig.EnvironmentName = repoConfig.Namespace
 
 	repoConfig.ImageTag = fmt.Sprintf("%s-%s-%s",
 		repoConfig.Application.Version,
 		repoConfig.GitBranch,
 		repoConfig.BuildID)
 
-	repoConfig.ImageName = fmt.Sprintf("%s/%s:%s", repoConfig.DockerRepositoryName, repoConfig.Application.Name, repoConfig.ImageTag)
-	if repoConfig.DockerRepository.RegistryRoot != "" {
-		repoConfig.ImagePath = fmt.Sprintf("%s/%s/%s", repoConfig.DockerRepository.RegistryRoot, repoConfig.DockerRepositoryName, repoConfig.Application.Name)
-		repoConfig.ImageFullPath = fmt.Sprintf("%s/%s", repoConfig.DockerRepository.RegistryRoot, repoConfig.ImageName)	
-	} else { // For DockerHub images, no RegistryRoot is needed
-		repoConfig.ImagePath = fmt.Sprintf("%s/%s", repoConfig.DockerRepositoryName, repoConfig.Application.Name)
-		repoConfig.ImageFullPath = repoConfig.ImageName
+	if repoConfig.ImageFullPath == "" { // if the path was not already provided in the deploy.yaml
+		repoConfig.ImageName = fmt.Sprintf("%s/%s:%s", repoConfig.DockerRepositoryName, repoConfig.Application.Name, repoConfig.ImageTag)
+		if repoConfig.DockerRepository.RegistryRoot != "" {
+			repoConfig.ImageFullPath = fmt.Sprintf("%s/%s", repoConfig.DockerRepository.RegistryRoot, repoConfig.ImageName)
+		} else { // For DockerHub images, no RegistryRoot is needed
+			repoConfig.ImageFullPath = repoConfig.ImageName
+		}
 	}
-	
+
 	repoConfig.ReleaseName = fmt.Sprintf("%s-%s", repoConfig.Application.Name, repoConfig.ImageTag)
 	repoConfig.PWD, err = os.Getwd()
 
