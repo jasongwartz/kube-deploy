@@ -11,25 +11,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-// func initUserConfig(configFilePath string) userConfigMap {
-
-// 	configFile, err := ioutil.ReadFile(configFilePath)
-// 	if err != nil {
-// 		fmt.Fprintln(os.Stderr, "Failed reading user config file:", err)
-// 		os.Exit(1)
-// 	}
-
-// 	userConfig := userConfigMap{}
-// 	err = yaml.Unmarshal(configFile, &userConfig)
-// 	if err != nil {
-// 		fmt.Fprintln(os.Stderr, "Failed parsing YAML user config file:", err)
-// 		os.Exit(1)
-// 	}
-
-// 	return userConfig
-// }
-
-// // TODO : find someway to de-duplicate these two functions
 
 // repoConfigMap : hash of the YAML data from project's deploy.yaml
 type repoConfigMap struct {
