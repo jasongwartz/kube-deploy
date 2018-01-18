@@ -4,20 +4,28 @@ Welcome to kube-deploy, an opinionated but friendly deployment tool for Kubernet
 
 ## Commands 
 
+### Context
+    - 'name'                Prints the full path of the docker image that `kube-deploy` would currently build and roll out.
+    - 'environment'         Prints the current environment/namespace being considered - one of 'production', 'staging', or 'development' - unless overridden.
+    - 'cluster'             Prints the name of the cluster to be rolled out to - 'production' for the 'production' and 'staging' environments, 'development' otherwise.
+
 ### Building
     - 'build'               Builds a Docker image, runs the build tests, and pushes the image to the remote repository.
     - 'make'                An alias for 'build'.
     - 'test'                Makes a build and runs the build tests, but does not push the build.
+    - 'testonly'            Runs the tests without making a build - only use if you're certain you haven't changed anything since the last build.
+    - 'list-tags'           Prints a list of available docker tags in the remote repository that match the current git branch (Google Cloud Registry only).
 
 ### Rolling Out
-    - 'list-tags'           Prints a list of available docker tags in the remote repository that match the current git branch (Google Cloud Registry only).
     - 'lock'                Writes the lockfile (prevents others from starting a deployment) for this project without starting a deployment.
     - 'lock-all'            Writes the lockfile (prevents others from starting a deployment) for ALL projects.
     - 'rollback'            Immediately rolls back to the previous release.
     - 'start-rollout'       Starts a new rollout.
+    - 'status'              Checks the lockfile to see if anyone is currently rolling out from this machine.
     - 'unlock'              Removes the lockfile, if it was created from the 'lock' command.
 
 ### Kubernetes commands
+    - 'active-deployments'  Lists the Deployments currently associated with this project and branch, as well as their replica count and creation date.
     - 'rolling-restart'     Will create a new ReplicaSet of the same image, to gradually restart all pods for the Deployment.
     - 'scale'               Scales the current deployment for this project and branch to the provided number of pods.
 

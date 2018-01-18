@@ -259,10 +259,10 @@ func kubeListDeployments() {
 	deployments := kubeAPIListDeployments(map[string]string{"app": repoConfig.Application.Name + "-" + repoConfig.GitBranch})
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', tabwriter.AlignRight)
-	fmt.Fprintln(w, fmt.Sprintf("%s  \t  %s", "Active Deployments", "Date Created"))
-	fmt.Fprintln(w, fmt.Sprintf("%s  \t  %s", "----------", "----------"))
+	fmt.Fprintln(w, fmt.Sprintf("%s \t %s \t %s", "Active Deployments", "Replicas", "Date Created"))
+	fmt.Fprintln(w, fmt.Sprintf("%s \t %s \t %s", "----------", "----------", "----------"))
 	for _, d := range deployments.Items {
-		fmt.Fprintln(w, fmt.Sprintf("%s  \t  %s", d.Name, d.CreationTimestamp))
+		fmt.Fprintln(w, fmt.Sprintf("%s \t %d \t %s", d.Name, int(*d.Spec.Replicas), d.CreationTimestamp))
 	}
 	w.Flush()
 }
