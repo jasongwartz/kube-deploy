@@ -148,26 +148,35 @@ If running on a machine inside Google Cloud, you can also run the following comm
 
 `kube-deploy` utilises [`consul-template`](https://github.com/hashicorp/consul-template) to interpolate variables into Kubernetes YAML configuration files.
 
-Environment variables can be specificed in the `kube-deploy` configuration file. All environment variables are declared in bash-like environment variable statements (in the format `ENV_KEY=value`), and will be added to the environment before templating the file with consul-template. These template variables can reference each other using Go string formatting - for example, `DOMAIN={{.APP_NAME}}.mycujoo.tv`.
+Environment variables can be specificed in the `kube-deploy` configuration file. All environment variables are declared in bash-like environment variable statements (in the format `ENV_KEY=value`), and will be added to the environment before templating the file with consul-template.
+
+These template variables can reference each other using Go string formatting - for example, `DOMAIN={{.APP_NAME}}.mycujoo.tv`.
+
 There are two sets of variables that can be declared inside `application->kubernetesTemplate` (see example configuration for more information):
-- `branchVariables` is a map of arrays of environment variable statements, specified per git branch.
+
+`branchVariables` is a map of arrays of environment variable statements, specified per git branch. It is possible to list multiple comma-seperated branch names.
 ```
 branchVariables:
     production:
     - DOMAIN=thumbs.mycujoo.tv
+    - INGRESS_CLASS=nginx-production
     master:
     - DOMAIN=thumbs.staging.mycujoo.tv
     else:
     - DOMAIN={{.KD_GIT_BRANCH}}.thumbs.dev.mycujoo.tv
+    master,else:
+    - INGRESS_CLASS=nginx-internal
+
 ```
-- `globalVariables` is an array of environment variables that will be consistent across all git branches.
+
+`globalVariables` is an array of environment variables that will be consistent across all git branches.
 ```
 globalVariables:
   - APP_NAME=thumbs
   - REPLICAS=4
 ```
 
-Some freebie variables are included by `kube-deploy` for you to use in your Kubernetes YAML files, prepended with "KD". These can be used in the exact same way as the other template variables, both in the Kubernetes file using the `consul-template` syntax and inside other environment variables (like `DOMAIN={{.KD_GIT_BRANCH}}.{{.KD_ENVIRONMENT_NAME}}.mycujoo.tv`).
+Some freebie variables are included by `kube-deploy` for you to use in your Kubernetes YAML files, prepended with "KD". These can be used in the exact same way as the other template variables, both in the Kubernetes file using the `consul-template` syntax (like `{{ env "VAR_NAME" }}`) and inside other environment variables using Go templating syntax (like `DOMAIN={{.KD_GIT_BRANCH}}.{{.KD_KUBERNETES_NAMESPACE}}.mycujoo.tv`).
 
 The "KD" freebie variables are:
 - `KD_RELEASE_NAME` - the Release Name (see Docker Naming Conventions above) - made of the application name plus the Image Tag
