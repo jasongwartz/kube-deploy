@@ -56,7 +56,7 @@ func main() {
 		case "name":
 			fmt.Fprintln(osstdout, repoConfig.ImageFullPath)
 		case "environment":
-			fmt.Fprintln(osstdout, repoConfig.EnvironmentName)
+			fmt.Fprintln(osstdout, repoConfig.Namespace)
 		case "cluster":
 			fmt.Fprintln(osstdout, repoConfig.ClusterName)
 

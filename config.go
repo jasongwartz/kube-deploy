@@ -48,7 +48,6 @@ type repoConfigMap struct {
 		} `yaml:"kubernetesTemplate"`
 	} `yaml:"application"`
 	DockerRepositoryName string
-	EnvironmentName      string // 'production', 'staging', or 'development'
 	ClusterName          string // 'production' or 'development' - 'staging' should use the production cluster
 	Namespace            string
 	GitBranch            string
@@ -111,7 +110,6 @@ func initRepoConfig(configFilePath string) repoConfigMap {
 			repoConfig.Namespace = "development"
 		}
 	}
-	repoConfig.EnvironmentName = repoConfig.Namespace
 
 	repoConfig.ImageTag = fmt.Sprintf("%s-%s-%s",
 		repoConfig.Application.Version,

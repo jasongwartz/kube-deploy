@@ -46,7 +46,7 @@ func runConsulTemplate(filename string) string {
 	vaultAddr := os.Getenv("VAULT_ADDR")
 	if vaultAddr != "" {
 		vaultAddr = fmt.Sprintf("--vault-renew-token=false --vault-retry=false --vault-addr %s", vaultAddr)
-		os.Setenv("SECRETS_LOCATION", repoConfig.EnvironmentName)
+		os.Setenv("SECRETS_LOCATION", repoConfig.Namespace)
 	}
 	consulTemplateArgs := fmt.Sprintf("%s -template %s -once -dry", vaultAddr, filename)
 
@@ -58,7 +58,6 @@ func runConsulTemplate(filename string) string {
 	envMap["KD_APP_NAME"] = repoConfig.Application.Name + "-" + repoConfig.GitBranch
 	envMap["KD_KUBERNETES_NAMESPACE"] = repoConfig.Namespace
 	envMap["KD_GIT_BRANCH"] = repoConfig.GitBranch
-	envMap["KD_ENVIRONMENT_NAME"] = repoConfig.EnvironmentName
 	envMap["KD_IMAGE_FULL_PATH"] = repoConfig.ImageFullPath
 	envMap["KD_IMAGE_TAG"] = repoConfig.ImageTag
 
