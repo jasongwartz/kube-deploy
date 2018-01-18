@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"strings"
 	"text/template"
 )
@@ -61,19 +62,29 @@ func runConsulTemplate(filename string) string {
 	envMap["KD_IMAGE_FULL_PATH"] = repoConfig.ImageFullPath
 	envMap["KD_IMAGE_TAG"] = repoConfig.ImageTag
 
-	var branchName string
-	if _, ok := repoConfig.Application.KubernetesTemplate.BranchVariables[repoConfig.GitBranch]; ok {
-		branchName = repoConfig.GitBranch
-	} else {
-		branchName = "else"
-	}
-	// Parse and add the branch-specific env vars first
-	for _, envVar := range repoConfig.Application.KubernetesTemplate.BranchVariables[branchName] {
-		split := strings.Split(envVar, "=")
-		envMap[split[0]] = split[1]
+	environmentToBranchMappings := map[string]string{
+		"production":  "production",
+		"staging":     "master",
+		"development": "else",
 	}
 
-	// Parse and add the rest of the env vars
+	headingToLookFor := environmentToBranchMappings[repoConfig.Namespace]
+	branchNameHeadings := repoConfig.Application.KubernetesTemplate.BranchVariables
+	re := regexp.MustCompile(fmt.Sprintf("%s,?", headingToLookFor))
+
+	// Loop over the branch names we would match with
+	// loop over the un-split headings
+	for heading := range branchNameHeadings {
+		// splitBranches := strings.Split(heading, ",")
+		if re.MatchString(heading) {
+			for _, envVar := range branchNameHeadings[heading] {
+				split := strings.Split(envVar, "=")
+				envMap[split[0]] = split[1]
+			}
+		}
+	}
+
+	// Parse and add the global env vars
 	for _, envVar := range repoConfig.Application.KubernetesTemplate.GlobalVariables {
 		split := strings.Split(envVar, "=")
 		envMap[split[0]] = split[1]
