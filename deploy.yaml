@@ -2,6 +2,7 @@
 dockerRepository:
   developmentRepositoryName: mycujoo-development
   productionRepositoryName: refined-cortex-806
+  registryRoot: eu.gcr.io
 application:
   name: kube-deploy
   version: 0.0.1
@@ -9,5 +10,6 @@ tests:
   - name: Test container can start
     dockerArgs: -d --name=kube-deploy-test
     dockerCommand: --test-only testtest
+    type: on-host
     commands:
     - bash -c "test $(docker inspect kube-deploy-test --format='{{.State.ExitCode}}') = '0' && echo 'Container ran and exited 0.'"

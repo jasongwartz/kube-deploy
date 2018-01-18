@@ -131,7 +131,7 @@ func runBuildTests() {
 					break
 				}
 			default:
-				fmt.Printf("=> Since you didn't specify where to run test %s, I'll run it in a test container (attached to the same network).\n", testCommand)
+				fmt.Printf("=> Since you didn't specify where to run test %s, I'll run it in an external container (attached to the same network).\n", testCommand)
 				if exitCode := streamAndGetCommandExitCode("docker", fmt.Sprintf("run --rm --network container:%s %s %s", containerName, testCommandImage, testCommand)); exitCode != 0 {
 					teardownTest(containerName, true)
 				}
