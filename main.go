@@ -60,8 +60,6 @@ func main() {
 		case "cluster":
 			fmt.Fprintln(osstdout, repoConfig.ClusterName)
 
-		case "install":
-			installDependencies()
 		case "build":
 			makeAndPushBuild()
 		case "make":
@@ -125,17 +123,9 @@ func askToProceed(promptMessage string) bool {
 	return true
 }
 
-func installDependencies() {
-	// Installs:
-	// git
-	// vault
-	// consul-template
-	// kubectl
-
-}
-
 func showHelp() {
-	helpData, err := ioutil.ReadFile("README.md") // make this part of the application bundle
+	helpData, err := ioutil.ReadFile("README.md")
+	// TODO: make this part of the application bundle, since right now it will print the README of whatever project you're trying to deploy :|
 	if err != nil {
 		fmt.Println("=> Oh no, we couldn't even read the help file!")
 		panic(err)
