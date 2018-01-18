@@ -10,21 +10,74 @@ Welcome to kube-deploy, an opinionated but friendly deployment tool for Kubernet
     - 'test'                Makes a build and runs the build tests, but does not push the build.
 
 ### Rolling Out
-    - 'list-deployments'    Prints a list of recent Kubernetes deployments for the current branch of this project.
     - 'list-tags'           Prints a list of available docker tags in the remote repository that match the current git branch (Google Cloud Registry only).
     - 'lock'                Writes the lockfile (prevents others from starting a deployment) for this project without starting a deployment.
     - 'lock-all'            Writes the lockfile (prevents others from starting a deployment) for ALL projects.
-    - 'rollback'            With no args, immediately rolls back to the previous release. A Docker tag may optionally be provided, in which case the deployment will be rolled back to the specified tag (with no canary points).
+    - 'rollback'            Immediately rolls back to the previous release.
     - 'start-rollout'       Starts a new rollout.
     - 'unlock'              Removes the lockfile, if it was created from the 'lock' command.
-
-### Creating and Removing Resources
-    - 'create'              Will create the Kubernetes resources located in the `kubernetes/config` directory in the project, with the namespace and domain as specified in [Branch Name Mappings](#Branch-Name-Mappings).
-    - 'teardown'            Will remove all specified resources for the current branch from Kubernetes. Only possible for the 'development' namespace (ie. not possible for staging and production).
 
 ### Kubernetes commands
     - 'rolling-restart'     Will create a new ReplicaSet of the same image, to gradually restart all pods for the Deployment.
     - 'scale'               Scales the current deployment for this project and branch to the provided number of pods.
+
+## Workflow
+
+The primary workflow of `kube-deploy` involves the following steps:
+- Parsing the git information and `deploy.yaml` file for configuration data
+- Build and test:
+    - Building a docker image
+    - Running tests against the newly-built docker image
+    - Pushing the docker image to remote
+- Kubernetes rollout:
+    - Templating yaml files using consul-template
+    - Creating new objects in Kubernetes from these yaml files
+    - Starting 1 pod of the new deployment, and wait for a go-ahead (canary point)
+    - Starts the desired number of new pods alongside the old pods, thus the new code receiving roughly 50% of traffic (second canary point)
+    - Scale down the old deployment to zero pods, giving the new code 100% of traffic (last canary point)
+
+
+## Opinions
+
+`kube-deploy` is pretty opinionated about it's environment, but the rules are simple.
+
+- Git and Docker:
+    - The `master` branch is for the `staging` environment; the `production` branch is for the `production` environment; all other branches are for the `development` environment
+- Kubernetes:
+    - The `development` cluster lives on its own, and has a Namespace called `development`
+    - The `staging` environment is part of the `production` Kubernetes cluster (but lives in a Namespace called `staging`)
+    - Only `Deployment` types are supported currently (not `StatefulSet`, `DaemonSet`, `Jobs`, etc)
+
+## Docker Naming Conventions
+
+`kube-deploy` names its docker images in the following format:
+
+    registryRoot/repositoryName/applicationName:version-branch-gitSHA
+
+So, for example, assuming the following variables in a `deploy.yaml`:
+
+    dockerRepository:
+        registryRoot: private-docker.company.com
+        developmentRepositoryName: dev-builds
+        productionRepositoryName: prod-builds
+    application:
+        name: great-api
+        version: 1.0.3
+
+A build on the `feature/amazing-new-idea` branch at commit SHA '7b7f73' would yield the docker image named:
+
+    private-docker.company.com/dev-builds/great-api:1.0.3-feature-amazing-new-idea-7b7f73
+
+When that feature gets merged to master, creating a new commit SHA of '198edc0', the resulting docker image would be called:
+
+    private-docker.company.com/prod-builds/great-api:1.0.3-master-198edc0
+
+Thus, every docker image can be tied to an exact point in time in the git history. This also means that one can rollback or roll forward to any arbitrary point in the git history.
+
+The combination of the application name, the branch name, and the commit hash, is referred to by `kube-deploy` as the 'Release Name', and is also used in the Kubernetes configuration. In this example, the release name would be:
+
+    great-api-1.0.3-master-198edc0
+
 
 ## Building and Pushing
 
@@ -33,25 +86,31 @@ Welcome to kube-deploy, an opinionated but friendly deployment tool for Kubernet
 The test sets are defined in the format:
 
     tests:
-    - name: <testSet name>
-      dockerArgs: <the arguments that will be passed to docker run. `-d` is very often useful>
+    - name: testSet name
+      dockerArgs: the arguments that will be passed to docker run. `-d` is very often useful
+      dockerCommand: Optional - an override command passed to `docker run`
+      type: One of [ `in-external-container` (default), `in-test-container`, `on-host`, `host-only` ]
       commands:
-      - array of
-      - shell commands that
-      - will be executed after the
-      - test container has started
+      - array of commands (eg. `curl localhost:3000`, or `cat start.log` or `bash -c "curl localhost:3000 | grep 'teststring'"`)
 
-There's even a `deploy.yaml` for `kube-deploy`, which tests that the source code can build and run.
+Test types:
+- `in-external-container` (default): Starts the test container, then starts another container to run the tests in the same network as the test container. Runs `docker run --rm --network container:<TEST_CONTAINER> <IMAGE> <COMMAND>`, thus starting a new container for each command. 
+- `in-test-container`: Starts the test container, then runs the commands inside that container via `docker exec`.
+- `on-host`: Starts the test container, then runs the commands on the host.
+- `host-only`: Runs the commands on the host without starting a test container. Useful for things like `docker-compose up -d` to start up all dependencies and leave them up for the other testsets, then use another `host-only` testset at the end for `docker-compose down`.
+
 
 An example test set configuration looks like this:
 
     tests:
     - name: Test container can start
       dockerArgs: -d
+      type: on-host # Will start the container, then run the following commands on host
       commands:
-      - docker ps | grep 'test'
+      - bash -c "docker ps | grep 'test'"
     - name: Test that container can respond to ping
       dockerArgs: -d -p 3000:3000 -e ENVIRONMENT=development
+      type: in-external-container
       commands:
       - curl --quiet localhost:3000
     - name: Run the test scripts
@@ -60,18 +119,20 @@ An example test set configuration looks like this:
       - sh test.sh
       - npm test
 
-The commands can be anything that is runnable in your local shell, including `docker-compose` to set up a more complex test environment.
+There's even a `deploy.yaml` for `kube-deploy`, which tests that the source code for this project can build and run.
 
 ### Pushing to Remote
 
-If you're logged in to your Docker remote repository, you don't need to set up any additional configuration to push your Docker image.
+You must be authenticated to your remote container registry (docker repository) in order to push the images you build.
 
-If you're using Google Container Registry for `kube-deploy` images, a few short steps can log you into the Docker remote. If `kube-deploy` is being run locally, it will prompt you to run the following commands to authenticate the container registry (If your local machine is a Mac, you might have to disable "Securely store docker logins in macOS keychain" to make `docker-credential-gcr` work properly):
+For Docker Hub, use `docker login`.
+
+For Google Container Registry, a few short steps can log you into the Docker remote. If running locally, you can run the following commands to authenticate the container registry (If your local machine is a Mac, you might have to disable "Securely store docker logins in macOS keychain" to make `docker-credential-gcr` work properly):
 
     gcloud components install docker-credential-gcr
     docker-credential-gcr configure-docker
 
-If running on a machine inside Google Cloud, `kube-deploy` will prompt you to run the following command to log in:
+If running on a machine inside Google Cloud, you can also run the following command to log in (replace "https://gcr.io" if using another region):
 
     docker login -u oauth2accesstoken -p "$(gcloud auth application-default print-access-token)" https://gcr.io
 
@@ -101,9 +162,12 @@ globalVariables:
 Some freebie variables are included by `kube-deploy` for you to use in your Kubernetes YAML files, prepended with "KD". These can be used in the exact same way as the other template variables, both in the Kubernetes file using the `consul-template` syntax and inside other environment variables (like `DOMAIN={{.KD_GIT_BRANCH}}.{{.KD_ENVIRONMENT_NAME}}.mycujoo.tv`).
 
 The "KD" freebie variables are:
+- `KD_RELEASE_NAME` - the Release Name (see Docker Naming Conventions above) - made of the application name plus the Image Tag
+- `KD_APP_NAME` - the application name plus the branch name; used as the selector for Services, etc so that pods from multiple Deployments can share a Service (but be discrete from Services associated with other git branches)
+- `KD_KUBERNETES_NAMESPACE` - the Kubernetes namespace - either 'production', 'staging', or 'development' (unless overridden)
 - `KD_GIT_BRANCH` - the current git branch
-- `KD_ENVIRONMENT_NAME` - ('production' for master and production branch names, 'development' otherwise)
 - `KD_IMAGE_FULL_PATH` - the full tag of the Docker image, including repository URL
+- `KD_IMAGE_TAG` - Of the format: `version-gitbranch-gitSHA`
 
 The branch-speciifc variables are parsed first, which means that the `globalVariables` can reference values from `branchVariables`, but not the other way around. Both `globalVariables` and `branchVariables` can reference the "KD" freebie variables.
 
@@ -133,6 +197,13 @@ For a normal rollout, first check out the repository to the branch you wish to d
 
 `kube-deploy` will create a lockfile on the deployment server during deployments to staging and production, to prevent two people from deploying at the same time.
 
+## Rollbacks
+
+To do an instant rollback, run `kube-deploy rollback`. This will start up pods in the old Deployment, labelled `kubedeploy-rollback-target`. There will be one canary point, when the reverting pods come up (and should have roughly 50% of traffic) to check that the problem is resolving. If you proceed at the canary, the reverted Deployment will scale to zero.
+
+The Deployment that was reverted will be left in place, marked with `kubedeploy-rollback-target`, so that running `kube-deploy rollback` will swap back to the "newer" Deployment. In case the rollback was uncessary and the issue was somewhere else, re-rolling back will make the most recent Deployment live again.
+
+<!-- 
 ## Branch Name Mappings
 
     Branch Name     Kubernetes Namespace    Domain
@@ -141,5 +212,4 @@ For a normal rollout, first check out the repository to the branch you wish to d
     production      production              <project-subdomain>.<domain-tld>
     *any other*     development             <git-SHA1>.<your-username>.<project-subdomain>.dev.<domain-tld>
 
-For example, if I (Jason) deploy the current branch at SHA `8086b67` for the project `awesome-website` and the company 'mycujoo.tv', the Kubernetes resources will be created in the `development` namespace and I will be able to access any Ingresses at `8086b67.jason.awesome-website.dev.mycujoo.tv`.
-
+For example, if I (Jason) deploy the current branch at SHA `8086b67` for the project `awesome-website` and the company 'mycujoo.tv', the Kubernetes resources will be created in the `development` namespace and I will be able to access any Ingresses at `8086b67.jason.awesome-website.dev.mycujoo.tv`. -->
