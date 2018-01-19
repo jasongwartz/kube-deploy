@@ -44,7 +44,6 @@ The primary workflow of `kube-deploy` involves the following steps:
     - Starts the desired number of new pods alongside the old pods, thus the new code receiving roughly 50% of traffic (second canary point)
     - Scale down the old deployment to zero pods, giving the new code 100% of traffic (last canary point)
 
-
 ## Opinions
 
 `kube-deploy` is pretty opinionated about it's environment, but the rules are simple.
@@ -55,6 +54,30 @@ The primary workflow of `kube-deploy` involves the following steps:
     - The `development` cluster lives on its own, and has a Namespace called `development`
     - The `staging` environment is part of the `production` Kubernetes cluster (but lives in a Namespace called `staging`)
     - Only `Deployment` types are supported currently (not `StatefulSet`, `DaemonSet`, `Jobs`, etc)
+
+## Configuration
+
+`kube-deploy` depends on a `deploy.yaml` file in the root directory of your project. The rough structure of this `deploy.yaml` file is:
+
+    dockerRepository:
+        developmentRepositoryName:  ""
+        productionRepositoryName: ""
+        registryRoot: ""
+    application:
+        name: ""
+        version: ""
+        packageJSON: bool (uses a 'package.json' file to override name and version)
+        kubernetesTemplate: (see below for details)
+            branchVariables: { branchName: [] }
+            globalVariables: []
+    tests:
+        - name: ""
+          type: ""
+          dockerArgs: ""
+          dockerCommand: ""
+          commands: []
+
+Most of the details of this configuration is explained elsewhere in this README.
 
 ## Docker Naming Conventions
 

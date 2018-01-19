@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -11,7 +12,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-
 // repoConfigMap : hash of the YAML data from project's deploy.yaml
 type repoConfigMap struct {
 	DockerRepository struct {
@@ -20,6 +20,7 @@ type repoConfigMap struct {
 		RegistryRoot              string `yaml:"registryRoot"`
 	} `yaml:"dockerRepository"`
 	Application struct {
+		PackageJSON           bool   `yaml:"packageJSON"`
 		Name                  string `yaml:"name"`
 		Version               string `yaml:"version"`
 		PathToKubernetesFiles string `yaml:"pathToKubernetesFiles"`
@@ -71,6 +72,10 @@ func initRepoConfig(configFilePath string) repoConfigMap {
 	repoConfig.GitBranch = invalidDockertagCharRegex.ReplaceAllString(repoConfig.GitBranch, "-")
 	repoConfig.BuildID = strings.TrimSuffix(getCommandOutput("git", "rev-parse --verify --short HEAD"), "\n")
 
+	if repoConfig.Application.PackageJSON {
+		repoConfig.Application.Name, repoConfig.Application.Version = readFromPackageJSON()
+	}
+
 	switch branch := repoConfig.GitBranch; branch {
 	case "production":
 		repoConfig.DockerRepositoryName = repoConfig.DockerRepository.ProductionRepositoryName
@@ -112,4 +117,25 @@ func initRepoConfig(configFilePath string) repoConfigMap {
 	repoConfig.KubeAPIClientSet = setupKubeAPI()
 
 	return repoConfig
+}
+
+func readFromPackageJSON() (string, string) {
+
+	type packageJSONTemplate struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+	}
+
+	packageJSONFile, err := ioutil.ReadFile("package.json")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "=> Config specifies to read from package.json, but reading a package.json file failed: ", err)
+		os.Exit(1)
+	}
+	packageJSONConfig := packageJSONTemplate{}
+	err = json.Unmarshal(packageJSONFile, &packageJSONConfig)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "=> Config specifies to read from package.json, but parsing the package.json file failed: ", err)
+		os.Exit(1)
+	}
+	return packageJSONConfig.Name, packageJSONConfig.Version
 }
