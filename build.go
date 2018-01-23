@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 	"time"
-	//	"os/exec"
 )
 
 const testCommandImage = "mycujoo/gcloud-docker"
@@ -28,18 +27,19 @@ func makeAndTestBuild() {
 	tagDockerImage()
 }
 
-func checkWorkingDirectory() bool {
+func workingDirectoryIsClean() bool {
 	// Returns 'true' for clean, 'false' for dirty
 	if runFlags.Bool("override-dirty-workdir") {
 		fmt.Println("=> Respecting your wishes to override the dirty working directory and build anyway.")
 		return true
 	}
 
-	dirtyWorkingDirectory := []int{
-		getCommandExitCode("git", "diff-index --quiet HEAD --"),       // checks for modified files
-		getCommandExitCode("test", "-z \"$(git ls-files --others)\"")} // checks for untracked files
-	for _, code := range dirtyWorkingDirectory {
-		if code != 0 {
+	cleanWorkDirChecks := []bool{
+		getCommandExitCode("git", "diff-index --quiet HEAD --") == 0, // checks for modified files
+		getCommandOutput("git", "ls-files --others") == "",           // checks for untracked files
+	}
+	for _, clean := range cleanWorkDirChecks {
+		if !clean {
 			return false
 		}
 	}
@@ -49,7 +49,7 @@ func checkWorkingDirectory() bool {
 func makeBuild() {
 	// Builds the docker image and tags it with the image short-name (ie. without the registry path)
 	if repoConfig.ClusterName == "production" {
-		if !checkWorkingDirectory() {
+		if !workingDirectoryIsClean() {
 			fmt.Println("=> Oh no! You have uncommited changes in the working tree. Please commit or stash before deploying to production.")
 			fmt.Println("=> If you're really, really sure, you can override this warning with the '--override-dirty-workdir' flag.")
 			os.Exit(1)
