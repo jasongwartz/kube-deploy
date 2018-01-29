@@ -89,6 +89,12 @@ func initRepoConfig(configFilePath string) repoConfigMap {
 		if repoConfig.Namespace == "" {
 			repoConfig.Namespace = "staging"
 		}
+	case "acceptance":
+		repoConfig.DockerRepositoryName = repoConfig.DockerRepository.ProductionRepositoryName
+		repoConfig.ClusterName = "production"
+		if repoConfig.Namespace == "" {
+			repoConfig.Namespace = "acceptance"
+		}
 	default:
 		repoConfig.DockerRepositoryName = repoConfig.DockerRepository.DevelopmentRepositoryName
 		repoConfig.ClusterName = "development"

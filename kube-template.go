@@ -62,16 +62,20 @@ func runConsulTemplate(filename string) string {
 	envMap["KD_IMAGE_FULL_PATH"] = repoConfig.ImageFullPath
 	envMap["KD_IMAGE_TAG"] = repoConfig.ImageTag
 
-	environmentToBranchMappings := map[string]string{
-		"production":  "production",
-		"staging":     "master",
-		"development": "else",
+	environmentToBranchMappings := map[string][]string{
+		"production":  []string{"production"},
+		"staging":     []string{"master", "staging"},
+		"development": []string{"else", "dev"},
+		"acceptance":  []string{"acceptance"},
 	}
 
 	headingToLookFor := environmentToBranchMappings[repoConfig.Namespace]
 	branchNameHeadings := repoConfig.Application.KubernetesTemplate.BranchVariables
-	re := regexp.MustCompile(fmt.Sprintf("%s,?", headingToLookFor))
+	re := regexp.MustCompile(fmt.Sprintf("(%s),?", strings.Join(headingToLookFor, "|")))
 
+	if runFlags.Bool("debug") {
+		fmt.Println("=> Here's the regex I'm going to use for matching branches (templating process): ", re.String())
+	}
 	// Loop over the branch names we would match with
 	// loop over the un-split headings
 	for heading := range branchNameHeadings {

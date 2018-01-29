@@ -49,10 +49,11 @@ The primary workflow of `kube-deploy` involves the following steps:
 `kube-deploy` is pretty opinionated about it's environment, but the rules are simple.
 
 - Git and Docker:
-    - The `master` branch is for the `staging` environment; the `production` branch is for the `production` environment; all other branches are for the `development` environment
+    - The `master` branch is for the `staging` environment; the `acceptance` branch is for the `acceptance` environment; the `production` branch is for the `production` environment; all other branches are for the `development` environment
 - Kubernetes:
     - The `development` cluster lives on its own, and has a Namespace called `development`
     - The `staging` environment is part of the `production` Kubernetes cluster (but lives in a Namespace called `staging`)
+    - The `acceptance` environment is part of the `production` Kubernetes cluster (but lives in a Namespace called `acceptance`)
     - Only `Deployment` types are supported currently (not `StatefulSet`, `DaemonSet`, `Jobs`, etc)
 
 ## Configuration
