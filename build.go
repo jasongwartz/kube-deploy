@@ -11,10 +11,14 @@ const testCommandImage = "mycujoo/gcloud-docker"
 
 func makeAndPushBuild() {
 	makeAndTestBuild()
+	var pushExitCode int
 	if runFlags.Bool("force-push-image") {
-		forcePushDockerImage()
+		pushExitCode = forcePushDockerImage()
 	} else {
-		askPushDockerImage()
+		pushExitCode = askPushDockerImage()
+	}
+	if pushExitCode != 0 {
+		os.Exit(1)
 	}
 }
 func makeAndTestBuild() {
@@ -24,7 +28,6 @@ func makeAndTestBuild() {
 	}
 	makeBuild()
 	runBuildTests()
-	tagDockerImage()
 }
 
 func workingDirectoryIsClean() bool {
@@ -57,13 +60,13 @@ func makeBuild() {
 	}
 
 	fmt.Println("=> Okay, let's start the build process!")
-	fmt.Printf("=> First, let's build the image with tag: %s\n\n", repoConfig.ImageName)
+	fmt.Printf("=> First, let's build the image with tag: %s\n\n", repoConfig.ImageFullPath)
 	time.Sleep(1 * time.Second)
 
 	// Run docker build
 	if exitCode := streamAndGetCommandExitCode(
 		"docker",
-		fmt.Sprintf("build -t %s %s", repoConfig.ImageName, repoConfig.PWD),
+		fmt.Sprintf("build -t %s %s", repoConfig.ImageFullPath, repoConfig.PWD),
 	); exitCode != 0 {
 		os.Exit(1)
 	}
@@ -81,13 +84,13 @@ func runBuildTests() {
 			exitCode      int
 		)
 		if testSet.Type != "host-only" { // 'host-only' skips running the test docker container (for env setup)
-			fmt.Printf("=> Starting docker image: %s\n", repoConfig.ImageName)
+			fmt.Printf("=> Starting docker image: %s\n", repoConfig.ImageFullPath)
 
 			var dockerRunCommand string
 			if testSet.DockerArgs != "" {
-				dockerRunCommand = fmt.Sprintf("%s %s", testSet.DockerArgs, repoConfig.ImageName)
+				dockerRunCommand = fmt.Sprintf("%s %s", testSet.DockerArgs, repoConfig.ImageFullPath)
 			} else {
-				dockerRunCommand = repoConfig.ImageName
+				dockerRunCommand = repoConfig.ImageFullPath
 			}
 			if testSet.DockerCommand != "" {
 				dockerRunCommand = dockerRunCommand + " " + testSet.DockerCommand
@@ -157,22 +160,17 @@ func teardownTest(containerName string, exit bool) {
 	}
 }
 
-func tagDockerImage() {
-	fmt.Printf("=> Tagging the image short name %s with the image full path:\n\t%s.\n\n", repoConfig.ImageName, repoConfig.ImageFullPath)
-	getCommandOutput("docker", fmt.Sprintf("tag %s %s", repoConfig.ImageName, repoConfig.ImageFullPath))
-}
-
-func askPushDockerImage() {
+func askPushDockerImage() int {
 	fmt.Print("=> Yay, all the tests passed! Would you like to push this to the remote now?\n=> Press 'y' to push, anything else to exit.\n>>> ") // TODO - make this pluggable
 	confirm, _ := reader.ReadString('\n')
 	if confirm != "y\n" && confirm != "Y" {
 		fmt.Println("=> Thanks for building, Bob!")
 		os.Exit(0)
-	} else {
-		streamAndGetCommandOutput("docker", fmt.Sprintf("push %s", repoConfig.ImageFullPath))
 	}
+	return streamAndGetCommandExitCode("docker", fmt.Sprintf("push %s", repoConfig.ImageFullPath))
+
 }
 
-func forcePushDockerImage() {
-	streamAndGetCommandOutput("docker", fmt.Sprintf("push %s", repoConfig.ImageFullPath))
+func forcePushDockerImage() int {
+	return streamAndGetCommandExitCode("docker", fmt.Sprintf("push %s", repoConfig.ImageFullPath))
 }

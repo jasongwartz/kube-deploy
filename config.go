@@ -35,7 +35,6 @@ type repoConfigMap struct {
 	GitBranch            string
 	BuildID              string
 	ImageTag             string
-	ImageName            string
 	ImageFullPath        string `yaml:"imageFullPath"`
 	PWD                  string
 	ReleaseName          string
@@ -109,11 +108,10 @@ func initRepoConfig(configFilePath string) repoConfigMap {
 		repoConfig.BuildID)
 
 	if repoConfig.ImageFullPath == "" { // if the path was not already provided in the deploy.yaml
-		repoConfig.ImageName = fmt.Sprintf("%s/%s:%s", repoConfig.DockerRepositoryName, repoConfig.Application.Name, repoConfig.ImageTag)
 		if repoConfig.DockerRepository.RegistryRoot != "" {
-			repoConfig.ImageFullPath = fmt.Sprintf("%s/%s", repoConfig.DockerRepository.RegistryRoot, repoConfig.ImageName)
+			repoConfig.ImageFullPath = fmt.Sprintf("%s/%s/%s:%s", repoConfig.DockerRepository.RegistryRoot, repoConfig.DockerRepositoryName, repoConfig.Application.Name, repoConfig.ImageTag)
 		} else { // For DockerHub images, no RegistryRoot is needed
-			repoConfig.ImageFullPath = repoConfig.ImageName
+			repoConfig.ImageFullPath = fmt.Sprintf("%s/%s:%s", repoConfig.DockerRepositoryName, repoConfig.Application.Name, repoConfig.ImageTag)
 		}
 	}
 
