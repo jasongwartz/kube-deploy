@@ -1,9 +1,9 @@
 package main
 
 import (
-	"io/ioutil"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strings"
 	"text/tabwriter"
@@ -72,6 +72,18 @@ func dockerAmLoggedIn() bool {
 	json.Unmarshal(dockerAuthFile, &dockerAuthData)
 
 	auths := dockerAuthData["auths"].(map[string]interface{})
+	credHelpers := dockerAuthData["credHelpers"].(map[string]interface{})
+
+	loggedInRemotes := make([]string, len(auths)+len(credHelpers))
+	i := 0
+	for k := range auths {
+		loggedInRemotes[i] = k
+		i++
+	}
+	for k := range credHelpers {
+		loggedInRemotes[i] = k
+		i++
+	}
 
 	// If no RegistryRoot is specified, look for dockerhub details
 	var authToLookFor string
@@ -81,8 +93,8 @@ func dockerAmLoggedIn() bool {
 		authToLookFor = repoConfig.DockerRepository.RegistryRoot
 	}
 
-	for remoteName := range auths {
-		if remoteName == authToLookFor || remoteName == "https://" + authToLookFor {
+	for _, remoteName := range loggedInRemotes {
+		if remoteName == authToLookFor || remoteName == "https://"+authToLookFor {
 			return true
 		}
 	}
