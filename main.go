@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"io/ioutil"
 	"strconv"
+	"strings"
 	// "flag"
 	"fmt"
 	"os"
@@ -78,6 +79,9 @@ func main() {
 			kubeInstantRollback()
 		case "rolling-restart":
 			kubeRollingRestart()
+		case "template-only":
+			fmt.Println("The files can be found at: ")
+			fmt.Fprint(osstdout, strings.Join(kubeMakeTemplates(), "\n"))
 
 		case "active-deployments":
 			kubeListDeployments()
