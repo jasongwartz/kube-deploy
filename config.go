@@ -104,7 +104,7 @@ func initRepoConfig(configFilePath string) repoConfigMap {
 
 	repoConfig.ImageTag = fmt.Sprintf("%s-%s-%s",
 		repoConfig.Application.Version,
-		repoConfig.GitBranch,
+		fmt.Sprintf("%.25s", repoConfig.GitBranch),
 		repoConfig.BuildID)
 
 	if repoConfig.ImageFullPath == "" { // if the path was not already provided in the deploy.yaml
@@ -115,7 +115,7 @@ func initRepoConfig(configFilePath string) repoConfigMap {
 		}
 	}
 
-	repoConfig.ReleaseName = fmt.Sprintf("%s-%s", repoConfig.Application.Name, repoConfig.ImageTag)
+	repoConfig.ReleaseName = fmt.Sprintf("%.25s-%s", repoConfig.Application.Name, repoConfig.ImageTag)
 	repoConfig.PWD, err = os.Getwd()
 
 	repoConfig.KubeAPIClientSet = setupKubeAPI()
