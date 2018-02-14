@@ -72,7 +72,10 @@ func dockerAmLoggedIn() bool {
 	json.Unmarshal(dockerAuthFile, &dockerAuthData)
 
 	auths := dockerAuthData["auths"].(map[string]interface{})
-	credHelpers := dockerAuthData["credHelpers"].(map[string]interface{})
+	var credHelpers map[string]interface{}
+	if dockerAuthData["credHelpers"] != nil {
+		credHelpers = dockerAuthData["credHelpers"].(map[string]interface{})
+	}
 
 	loggedInRemotes := make([]string, len(auths)+len(credHelpers))
 	i := 0
@@ -85,10 +88,10 @@ func dockerAmLoggedIn() bool {
 		i++
 	}
 
-	// If no RegistryRoot is specified, look for dockerhub details
 	var authToLookFor string
 	if repoConfig.DockerRepository.RegistryRoot == "" {
-		authToLookFor = "docker"
+		// If no RegistryRoot is specified, look for dockerhub details
+		authToLookFor = "index.docker.io/v1/"
 	} else {
 		authToLookFor = repoConfig.DockerRepository.RegistryRoot
 	}
