@@ -73,6 +73,12 @@ func runConsulTemplate(filename string) string {
 	branchNameHeadings := repoConfig.Application.KubernetesTemplate.BranchVariables
 	re := regexp.MustCompile(fmt.Sprintf("(%s),?", strings.Join(headingToLookFor, "|")))
 
+	// Parse and add the global env vars
+	for _, envVar := range repoConfig.Application.KubernetesTemplate.GlobalVariables {
+		split := strings.Split(envVar, "=")
+		envMap[split[0]] = split[1]
+	}
+
 	if runFlags.Bool("debug") {
 		fmt.Println("=> Here's the regex I'm going to use for matching branches (templating process): ", re.String())
 	}
@@ -88,10 +94,8 @@ func runConsulTemplate(filename string) string {
 		}
 	}
 
-	// Parse and add the global env vars
-	for _, envVar := range repoConfig.Application.KubernetesTemplate.GlobalVariables {
-		split := strings.Split(envVar, "=")
-		envMap[split[0]] = split[1]
+	if runFlags.Bool("debug") {
+		fmt.Println(envMap)
 	}
 
 	// Add the variables to the environment, doing any inline substitutions
@@ -105,6 +109,12 @@ func runConsulTemplate(filename string) string {
 			os.Exit(1)
 		}
 		os.Setenv(key, envVarBuf.String())
+	}
+
+	if runFlags.Bool("debug") {
+		for _, i := range os.Environ() {
+			fmt.Println(i)
+		}
 	}
 
 	output, exitCode := getCommandOutputAndExitCode("consul-template", consulTemplateArgs)

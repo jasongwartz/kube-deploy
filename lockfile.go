@@ -93,6 +93,10 @@ func lockBeforeRollout() {
 	if !isLocked() {
 		writeLockFile(repoConfig.Application.Name, "rollout in progress")
 	} else {
+		if runFlags.Bool("force") {
+			fmt.Println("=> Lockfile exists, but proceeding anyway due to '--force'.")
+			return
+		}
 		os.Exit(1)
 	}
 }
