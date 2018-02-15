@@ -30,7 +30,7 @@ func main() {
 	}
 	// TODO: for some reason, on a linux machine, if any command other than 'curl' is executed first, all
 	//		 subcommands fail - but sometimes, the first-run after 'go build' works. Who knows...
-	if exitCode := getCommandExitCode("curl", "-s --connect-timeout 3 https://ifconfig.co"); exitCode != 0 {
+	if exitCode := getCommandExitCode("curl", "-s --connect-timeout 3 https://ifconfig.io"); exitCode != 0 {
 		fmt.Println("=> Uh oh, looks like you're not connected to the internet (or maybe it's just too slow).")
 		os.Exit(1)
 	}
