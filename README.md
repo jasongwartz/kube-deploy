@@ -56,6 +56,13 @@ The primary workflow of `kube-deploy` involves the following steps:
     - The `acceptance` environment is part of the `production` Kubernetes cluster (but lives in a Namespace called `acceptance`)
     - Only `Deployment` types are supported currently (not `StatefulSet`, `DaemonSet`, `Jobs`, etc)
 
+## Host Dependencies
+
+The following applications are called by `kube-deploy` as subcommands (`os/exec`), and are therefore required:
+- [`consul-template`](https://github.com/hashicorp/consul-template)
+- [`vault`](https://www.vaultproject.io/)
+- [`kubectl`](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+
 ## Configuration
 
 `kube-deploy` depends on a `deploy.yaml` file in the root directory of your project. The rough structure of this `deploy.yaml` file is:
