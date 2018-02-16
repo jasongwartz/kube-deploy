@@ -2,6 +2,14 @@
 
 Welcome to kube-deploy, an opinionated but friendly deployment tool for Kubernetes!
 
+## Overview
+
+* Easy developer-focused command-line tool.
+* Utilizes templating kubernetes consul-template and vault to create secure and complex deployments that fit almost any scenerio.
+* Canary deployments, easy rollback and scaling
+* Support for multiple clusters
+* Works for teams of any size
+
 ## Commands 
 
 ### Context
