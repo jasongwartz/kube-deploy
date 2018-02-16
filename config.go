@@ -33,7 +33,7 @@ type repoConfigMap struct {
 	ClusterName          string // 'production' or 'development' - 'staging' should use the production cluster
 	Namespace            string
 	GitBranch            string
-	BuildID              string
+	GitSHA               string
 	ImageTag             string
 	ImageFullPath        string `yaml:"imageFullPath"`
 	PWD                  string
@@ -69,7 +69,7 @@ func initRepoConfig(configFilePath string) repoConfigMap {
 	repoConfig.GitBranch = strings.TrimSuffix(getCommandOutput("git", "rev-parse --abbrev-ref HEAD"), "\n")
 	invalidDockertagCharRegex := regexp.MustCompile(`([^a-z|A-Z|0-9|\-|_|\.])`)
 	repoConfig.GitBranch = invalidDockertagCharRegex.ReplaceAllString(repoConfig.GitBranch, "-")
-	repoConfig.BuildID = strings.TrimSuffix(getCommandOutput("git", "rev-parse --verify --short HEAD"), "\n")
+	repoConfig.GitSHA = strings.TrimSuffix(getCommandOutput("git", "rev-parse --verify --short HEAD"), "\n")
 
 	if repoConfig.Application.PackageJSON {
 		repoConfig.Application.Name, repoConfig.Application.Version = readFromPackageJSON()
@@ -105,7 +105,7 @@ func initRepoConfig(configFilePath string) repoConfigMap {
 	repoConfig.ImageTag = fmt.Sprintf("%s-%s-%s",
 		repoConfig.Application.Version,
 		fmt.Sprintf("%.25s", repoConfig.GitBranch),
-		repoConfig.BuildID)
+		repoConfig.GitSHA)
 
 	if repoConfig.ImageFullPath == "" { // if the path was not already provided in the deploy.yaml
 		if repoConfig.DockerRepository.RegistryRoot != "" {

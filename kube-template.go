@@ -59,6 +59,7 @@ func runConsulTemplate(filename string) string {
 	envMap["KD_APP_NAME"] = repoConfig.Application.Name + "-" + repoConfig.GitBranch
 	envMap["KD_KUBERNETES_NAMESPACE"] = repoConfig.Namespace
 	envMap["KD_GIT_BRANCH"] = repoConfig.GitBranch
+	envMap["KD_GIT_SHA"] = repoConfig.GitSHA
 	envMap["KD_IMAGE_FULL_PATH"] = repoConfig.ImageFullPath
 	envMap["KD_IMAGE_TAG"] = repoConfig.ImageTag
 
