@@ -17,6 +17,7 @@ func kubeMakeTemplates() []string {
 	templateFiles, err := ioutil.ReadDir(repoConfig.Application.PathToKubernetesFiles)
 	if err != nil {
 		fmt.Println("=> Unable to get list of kubernetes files.")
+		os.Exit(1)
 	}
 
 	var filePaths []string
