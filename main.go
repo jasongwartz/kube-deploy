@@ -60,6 +60,8 @@ func main() {
 			fmt.Fprintln(osstdout, repoConfig.Namespace)
 		case "cluster":
 			fmt.Fprintln(osstdout, repoConfig.ClusterName)
+		case "release":
+			fmt.Fprintln(osstdout, repoConfig.ReleaseName)
 
 		case "build":
 			makeAndPushBuild()
