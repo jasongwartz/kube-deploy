@@ -2,12 +2,14 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"sort"
 	"strconv"
 	"text/tabwriter"
 	"time"
 
+	"k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 )
 
@@ -253,6 +255,39 @@ func kubeScaleDeployment(replicas int32) {
 		}
 		os.Exit(1)
 	}
+}
+
+func kubeRemove() {
+	lockBeforeRollout()
+
+	for _, f := range kubeMakeTemplates() {
+		fileData, err := ioutil.ReadFile(f)
+		if err != nil {
+			fmt.Println("Coud not read template file to remove.")
+		}
+		kubeObject := parseKubeFile(fileData)
+
+		switch o := kubeObject.(type) {
+		case *v1beta1.Deployment:
+			deployment := kubeObject.(*v1beta1.Deployment)
+			kubeAPIDeleteDeployment(deployment)
+		case *v1.Service:
+			service := kubeObject.(*v1.Service)
+			kubeAPIDeleteService(service)
+		case *v1.Secret:
+			secret := kubeObject.(*v1.Secret)
+			kubeAPIDeleteSecret(secret)
+		case *v1beta1.Ingress:
+			ingress := kubeObject.(*v1beta1.Ingress)
+			kubeAPIDeleteIngress(ingress)
+		default:
+			fmt.Println("=> Unable to delete Kubernetes object of type: ", o)
+			os.Exit(1)
+		}
+	}
+
+	kubeRemoveTemplates()
+	unlockAfterRollout()
 }
 
 func kubeListDeployments() {

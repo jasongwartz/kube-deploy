@@ -1,29 +1,22 @@
 package main
 
-
 import (
-	// "k8s.io/api/authentication/v1beta1"
-	"k8s.io/api/extensions/v1beta1"
 	"fmt"
 	"os"
 	"path/filepath"
 
-	typedv1beta1 "k8s.io/client-go/kubernetes/typed/apps/v1beta1"
+	"k8s.io/api/core/v1"
+	"k8s.io/api/extensions/v1beta1"
 
-	// "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/apimachinery/pkg/labels"
-	// "k8s.io/api/apps/v1beta2"
-	// api "k8s.io/client-go/tools/clientcmd/api"
 	// Uncomment the following line to load the gcp plugin (only required to authenticate against GKE clusters).
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
 
-var kubeDeploymentClient typedv1beta1.DeploymentInterface
-
-func setupKubeAPI() (*kubernetes.Clientset) {
+func setupKubeAPI() *kubernetes.Clientset {
 
 	var kubeconfig string
 	var homeDir string
@@ -33,8 +26,6 @@ func setupKubeAPI() (*kubernetes.Clientset) {
 		os.Exit(1)
 	}
 
-	// kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-//	flag.Parse()
 	kubeconfig = filepath.Join(homeDir, ".kube", "config")
 
 	// use the current context in kubeconfig
@@ -48,18 +39,11 @@ func setupKubeAPI() (*kubernetes.Clientset) {
 	if err != nil {
 		panic(err.Error())
 	}
-	
-	
+
 	return clientset
 }
 
-func createKubeDeploymentClient() {
-	client := repoConfig.KubeAPIClientSet.AppsV1beta1().Deployments(repoConfig.Namespace)
-	kubeDeploymentClient = client
-}
-
-
-func kubeAPIGetSingleDeployment(name string) (*v1beta1.Deployment) {
+func kubeAPIGetSingleDeployment(name string) *v1beta1.Deployment {
 	deployment, _ := repoConfig.KubeAPIClientSet.
 		ExtensionsV1beta1().Deployments(repoConfig.Namespace).
 		Get(name, metav1.GetOptions{})
@@ -67,7 +51,7 @@ func kubeAPIGetSingleDeployment(name string) (*v1beta1.Deployment) {
 	return deployment
 }
 
-func kubeAPIUpdateDeployment(deployment *v1beta1.Deployment) (*v1beta1.Deployment) {
+func kubeAPIUpdateDeployment(deployment *v1beta1.Deployment) *v1beta1.Deployment {
 	newDeployment, err := repoConfig.KubeAPIClientSet.
 		ExtensionsV1beta1().Deployments(repoConfig.Namespace).
 		Update(deployment)
@@ -78,7 +62,7 @@ func kubeAPIUpdateDeployment(deployment *v1beta1.Deployment) (*v1beta1.Deploymen
 		fmt.Printf("=> => Updated deployment %s.\n", deployment.Name)
 	}
 	return newDeployment
-	
+
 }
 
 func kubeAPIAddDeploymentLabel(deployment *v1beta1.Deployment, key string, value string) {
@@ -98,12 +82,33 @@ func kubeAPIDeleteDeployment(deployment *v1beta1.Deployment) {
 		ExtensionsV1beta1().Deployments(repoConfig.Namespace).
 		Delete(deployment.Name, &metav1.DeleteOptions{
 			PropagationPolicy: &deletePolicy,
-	}); err != nil {
+		}); err != nil {
 		panic(err.Error())
 	}
 }
 
-func kubeAPIListDeployments(labelFilter map[string]string) (*v1beta1.DeploymentList) {
+func kubeAPIDeleteService(service *v1.Service) {
+	if err := repoConfig.KubeAPIClientSet.CoreV1().Services(repoConfig.Namespace).
+		Delete(service.Name, nil); err != nil {
+		panic(err.Error())
+	}
+}
+
+func kubeAPIDeleteSecret(secret *v1.Secret) {
+	if err := repoConfig.KubeAPIClientSet.CoreV1().Secrets(repoConfig.Namespace).
+		Delete(secret.Name, nil); err != nil {
+		panic(err.Error())
+	}
+}
+
+func kubeAPIDeleteIngress(ingress *v1beta1.Ingress) {
+	if err := repoConfig.KubeAPIClientSet.ExtensionsV1beta1().Ingresses(repoConfig.Namespace).
+		Delete(ingress.Name, nil); err != nil {
+		panic(err.Error())
+	}
+}
+
+func kubeAPIListDeployments(labelFilter map[string]string) *v1beta1.DeploymentList {
 
 	label := labels.Set(labelFilter)
 

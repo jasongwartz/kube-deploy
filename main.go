@@ -85,6 +85,9 @@ func main() {
 			fmt.Println("The files can be found at: ")
 			fmt.Fprint(osstdout, strings.Join(kubeMakeTemplates(), "\n"))
 
+		case "remove":
+			kubeRemove()
+
 		case "active-deployments":
 			kubeListDeployments()
 		case "list-tags":
