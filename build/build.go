@@ -47,7 +47,7 @@ func MakeAndTestBuild(dirtyWorkDirOverride bool, keepTestContainer bool, repoCon
 	}
 
 	makeBuild()
-	runBuildTests(keepTestContainer)
+	RunBuildTests(keepTestContainer)
 }
 
 func workingDirectoryIsClean() bool {
@@ -79,7 +79,7 @@ func makeBuild() {
 	}
 }
 
-func runBuildTests(keepTestContainer bool) {
+func RunBuildTests(keepTestContainer bool) {
 	// Start container and run tests
 	tests := repoConfig.Tests
 	for _, testSet := range tests {

@@ -54,7 +54,7 @@ type testConfigMap struct {
 	Commands      []string `yaml:"commands"`
 }
 
-func initRepoConfig(configFilePath string) RepoConfigMap {
+func InitRepoConfig(configFilePath string) RepoConfigMap {
 
 	configFile, err := ioutil.ReadFile(configFilePath)
 	if err != nil {

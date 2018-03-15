@@ -46,7 +46,7 @@ func readLockFile(filename string) lockFileContents {
 	return lockFileData
 }
 
-func writeLockFile(filename, reason string) {
+func WriteLockFile(filename, reason string) {
 	currentUser := os.Getenv("USER")
 	lockFileData := lockFileContents{
 		Author:      currentUser,
@@ -64,7 +64,7 @@ func writeLockFile(filename, reason string) {
 	fmt.Printf("=> Successfully wrote lockfile for '%s'.\n\n", filename)
 }
 
-func deleteLockFile(filename string) {
+func DeleteLockFile(filename string) {
 	err := os.Remove(locksRootPath + filename)
 	if err != nil {
 		panic(err.Error())
@@ -91,7 +91,7 @@ func IsLocked(applicationName string) bool {
 
 func LockBeforeRollout(applicationName string, force bool) {
 	if !IsLocked(applicationName) {
-		writeLockFile(applicationName, "rollout in progress")
+		WriteLockFile(applicationName, "rollout in progress")
 	} else {
 		if force {
 			fmt.Println("=> Lockfile exists, but proceeding anyway due to '--force'.")
@@ -102,5 +102,5 @@ func LockBeforeRollout(applicationName string, force bool) {
 }
 
 func UnlockAfterRollout(applicationName string) {
-	deleteLockFile(applicationName)
+	DeleteLockFile(applicationName)
 }
