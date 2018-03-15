@@ -10,31 +10,31 @@ import (
 	"syscall"
 )
 
-func getCommandOutput(cmdName string, cmdArgs string) string {
+func GetCommandOutput(cmdName string, cmdArgs string) string {
 	output, _ := runCommand(cmdName, cmdArgs, false, false)
 	return output
 }
 
-func getCommandExitCode(cmdName string, cmdArgs string) int {
+func GetCommandExitCode(cmdName string, cmdArgs string) int {
 	_, exit := runCommand(cmdName, cmdArgs, false, true) // Sends quiet signal
 	return exit
 }
 
-func getCommandOutputAndExitCode(cmdName string, cmdArgs string) (string, int) {
+func GetCommandOutputAndExitCode(cmdName string, cmdArgs string) (string, int) {
 	output, exit := runCommand(cmdName, cmdArgs, false, false)
 	return output, exit
 }
 
-func streamAndGetCommandOutput(cmdName string, cmdArgs string) string {
+func StreamAndGetCommandOutput(cmdName string, cmdArgs string) string {
 	output, _ := runCommand(cmdName, cmdArgs, true, false)
 	return output
 }
-func streamAndGetCommandOutputAndExitCode(cmdName string, cmdArgs string) (string, int) {
+func StreamAndGetCommandOutputAndExitCode(cmdName string, cmdArgs string) (string, int) {
 	output, exit := runCommand(cmdName, cmdArgs, true, false)
 	return output, exit
 }
 
-func streamAndGetCommandExitCode(cmdName string, cmdArgs string) int {
+func StreamAndGetCommandExitCode(cmdName string, cmdArgs string) int {
 	_, exit := runCommand(cmdName, cmdArgs, true, false)
 	return exit
 }
