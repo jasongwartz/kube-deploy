@@ -273,7 +273,7 @@ func kubeRemove() {
 		if err != nil {
 			fmt.Println("Coud not read template file to remove.")
 		}
-		kubeObject := parseKubeFile(fileData)
+		kubeObject := kubeapi.ParseKubeFile(fileData)
 
 		switch o := kubeObject.(type) {
 		case *v1beta1.Deployment:

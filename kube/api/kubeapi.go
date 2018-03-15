@@ -20,7 +20,7 @@ import (
 var clientSet *kubernetes.Clientset
 var namespace string
 
-func Setup(namespace string) *kubernetes.Clientset {
+func Setup(namespaceParam string) *kubernetes.Clientset {
 
 	var kubeconfig string
 	var homeDir string
@@ -45,7 +45,7 @@ func Setup(namespace string) *kubernetes.Clientset {
 	}
 
 	clientSet = clientset
-	namespace = namespace
+	namespace = namespaceParam
 	return clientset
 }
 
