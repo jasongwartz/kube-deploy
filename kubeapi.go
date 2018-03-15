@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/retry"
 	// Uncomment the following line to load the gcp plugin (only required to authenticate against GKE clusters).
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
@@ -51,17 +52,28 @@ func kubeAPIGetSingleDeployment(name string) *v1beta1.Deployment {
 	return deployment
 }
 
-func kubeAPIUpdateDeployment(deployment *v1beta1.Deployment) *v1beta1.Deployment {
-	newDeployment, err := repoConfig.KubeAPIClientSet.
-		ExtensionsV1beta1().Deployments(repoConfig.Namespace).
-		Update(deployment)
-	if err != nil {
-		panic(err.Error())
+func kubeAPIUpdateDeployment(name string, callback func(*v1beta1.Deployment)) *v1beta1.Deployment {
+
+	var deployment *v1beta1.Deployment
+
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Retrieve the latest version of Deployment before attempting update
+		// RetryOnConflict uses exponential backoff to avoid exhausting the apiserver
+		// result, getErr := deploymentsClient.Get("demo-deployment", metav1.GetOptions{})
+		deployment = kubeAPIGetSingleDeployment(name)
+		callback(deployment)
+		_, updateErr := repoConfig.KubeAPIClientSet.ExtensionsV1beta1().Deployments(repoConfig.Namespace).
+			Update(deployment)
+		return updateErr
+	})
+	if retryErr != nil {
+		panic(fmt.Errorf("Update failed: %v", retryErr))
 	}
+
 	if runFlags.Bool("debug") {
 		fmt.Printf("=> => Updated deployment %s.\n", deployment.Name)
 	}
-	return newDeployment
+	return deployment
 
 }
 
