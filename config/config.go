@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"encoding/json"
@@ -10,10 +10,13 @@ import (
 
 	"gopkg.in/yaml.v2"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/mycujoo/kube-deploy/cli"
+	"github.com/mycujoo/kube-deploy/kube/api"
 )
 
-// repoConfigMap : hash of the YAML data from project's deploy.yaml
-type repoConfigMap struct {
+// RepoConfigMap : hash of the YAML data from project's deploy.yaml
+type RepoConfigMap struct {
 	DockerRepository struct {
 		DevelopmentRepositoryName string `yaml:"developmentRepositoryName"`
 		ProductionRepositoryName  string `yaml:"productionRepositoryName"`
@@ -51,7 +54,7 @@ type testConfigMap struct {
 	Commands      []string `yaml:"commands"`
 }
 
-func initRepoConfig(configFilePath string) repoConfigMap {
+func initRepoConfig(configFilePath string) RepoConfigMap {
 
 	configFile, err := ioutil.ReadFile(configFilePath)
 	if err != nil {
@@ -59,17 +62,17 @@ func initRepoConfig(configFilePath string) repoConfigMap {
 		os.Exit(1)
 	}
 
-	repoConfig := repoConfigMap{}
+	repoConfig := RepoConfigMap{}
 	err = yaml.Unmarshal(configFile, &repoConfig)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Failed parsing YAML repo config file:", err)
 		os.Exit(1)
 	}
 
-	repoConfig.GitBranch = strings.TrimSuffix(getCommandOutput("git", "rev-parse --abbrev-ref HEAD"), "\n")
+	repoConfig.GitBranch = strings.TrimSuffix(cli.GetCommandOutput("git", "rev-parse --abbrev-ref HEAD"), "\n")
 	invalidDockertagCharRegex := regexp.MustCompile(`([^a-z|A-Z|0-9|\-|_|\.])`)
 	repoConfig.GitBranch = invalidDockertagCharRegex.ReplaceAllString(repoConfig.GitBranch, "-")
-	repoConfig.GitSHA = strings.TrimSuffix(getCommandOutput("git", "rev-parse --verify --short HEAD"), "\n")
+	repoConfig.GitSHA = strings.TrimSuffix(cli.GetCommandOutput("git", "rev-parse --verify --short HEAD"), "\n")
 
 	if repoConfig.Application.PackageJSON {
 		repoConfig.Application.Name, repoConfig.Application.Version = readFromPackageJSON()
@@ -118,7 +121,7 @@ func initRepoConfig(configFilePath string) repoConfigMap {
 	repoConfig.ReleaseName = fmt.Sprintf("%.25s-%s", repoConfig.Application.Name, repoConfig.ImageTag)
 	repoConfig.PWD, err = os.Getwd()
 
-	repoConfig.KubeAPIClientSet = setupKubeAPI()
+	repoConfig.KubeAPIClientSet = kubeapi.Setup(repoConfig.Namespace)
 
 	return repoConfig
 }
