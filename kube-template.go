@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"text/template"
+
+	"github.com/mycujoo/kube-deploy/cli"
 )
 
 // Returns a list of the filenames of the filled-out templates
@@ -119,7 +121,7 @@ func runConsulTemplate(filename string) string {
 		}
 	}
 
-	output, exitCode := getCommandOutputAndExitCode("consul-template", consulTemplateArgs)
+	output, exitCode := cli.GetCommandOutputAndExitCode("consul-template", consulTemplateArgs)
 	if exitCode != 0 {
 		fmt.Println("=> Oh no, looks like consul-template failed!")
 		os.Exit(1)

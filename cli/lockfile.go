@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"encoding/json"
@@ -46,7 +46,7 @@ func readLockFile(filename string) lockFileContents {
 	return lockFileData
 }
 
-func writeLockFile(filename, reason string) {
+func WriteLockFile(filename, reason string) {
 	currentUser := os.Getenv("USER")
 	lockFileData := lockFileContents{
 		Author:      currentUser,
@@ -64,14 +64,14 @@ func writeLockFile(filename, reason string) {
 	fmt.Printf("=> Successfully wrote lockfile for '%s'.\n\n", filename)
 }
 
-func deleteLockFile(filename string) {
+func DeleteLockFile(filename string) {
 	err := os.Remove(locksRootPath + filename)
 	if err != nil {
 		panic(err.Error())
 	}
 }
 
-func isLocked() bool {
+func IsLocked(applicationName string) bool {
 	if lockFileExists("all") {
 		fmt.Println("=> All rollouts are currently blocked.")
 		lock := readLockFile("all")
@@ -79,9 +79,9 @@ func isLocked() bool {
 			lock.Author, lock.Reason, lock.DateStarted)
 		return true
 	}
-	if lockFileExists(repoConfig.Application.Name) {
-		fmt.Printf("=> Rollouts for %s are blocked.\n", repoConfig.Application.Name)
-		lock := readLockFile(repoConfig.Application.Name)
+	if lockFileExists(applicationName) {
+		fmt.Printf("=> Rollouts for %s are blocked.\n", applicationName)
+		lock := readLockFile(applicationName)
 		fmt.Printf("\tBlocked by: %s\n\tFor reason: %s\n\tOn date: %s\n",
 			lock.Author, lock.Reason, lock.DateStarted)
 		return true
@@ -89,11 +89,11 @@ func isLocked() bool {
 	return false
 }
 
-func lockBeforeRollout() {
-	if !isLocked() {
-		writeLockFile(repoConfig.Application.Name, "rollout in progress")
+func LockBeforeRollout(applicationName string, force bool) {
+	if !IsLocked(applicationName) {
+		WriteLockFile(applicationName, "rollout in progress")
 	} else {
-		if runFlags.Bool("force") {
+		if force {
 			fmt.Println("=> Lockfile exists, but proceeding anyway due to '--force'.")
 			return
 		}
@@ -101,6 +101,6 @@ func lockBeforeRollout() {
 	}
 }
 
-func unlockAfterRollout() {
-	deleteLockFile(repoConfig.Application.Name)
+func UnlockAfterRollout(applicationName string) {
+	DeleteLockFile(applicationName)
 }

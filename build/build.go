@@ -1,18 +1,24 @@
-package main
+package build
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/mycujoo/kube-deploy/cli"
+	"github.com/mycujoo/kube-deploy/config"
 )
 
 const testCommandImage = "mycujoo/gcloud-docker"
 
-func makeAndPushBuild() {
-	makeAndTestBuild()
+var repoConfig config.RepoConfigMap
+
+func MakeAndPushBuild(forcePush bool, dirtyWorkDirOverride bool, keepTestContainer bool, repoConfigParam config.RepoConfigMap) {
+	MakeAndTestBuild(dirtyWorkDirOverride, keepTestContainer, repoConfigParam)
 	var pushExitCode int
-	if runFlags.Bool("force-push-image") {
+	if forcePush {
 		pushExitCode = forcePushDockerImage()
 	} else {
 		pushExitCode = askPushDockerImage()
@@ -21,25 +27,34 @@ func makeAndPushBuild() {
 		os.Exit(1)
 	}
 }
-func makeAndTestBuild() {
-	if !dockerAmLoggedIn() {
+func MakeAndTestBuild(dirtyWorkDirOverride bool, keepTestContainer bool, repoConfigParam config.RepoConfigMap) {
+	if !DockerAmLoggedIn() {
 		fmt.Println("=> Uh oh, you're not logged into the configured docker remote for this repo. You won't be able to push!")
 		os.Exit(1)
 	}
+
+	repoConfig = repoConfigParam
+
+	// Builds the docker image and tags it with the image short-name (ie. without the registry path)
+	if repoConfig.ClusterName == "production" && !workingDirectoryIsClean() {
+		if dirtyWorkDirOverride {
+			fmt.Println("=> Respecting your wishes to override the dirty working directory and build anyway.")
+		} else {
+			fmt.Println("=> Oh no! You have uncommited changes in the working tree. Please commit or stash before deploying to production.")
+			fmt.Println("=> If you're really, really sure, you can override this warning with the '--override-dirty-workdir' flag.")
+			os.Exit(1)
+		}
+	}
+
 	makeBuild()
-	runBuildTests()
+	RunBuildTests(keepTestContainer)
 }
 
 func workingDirectoryIsClean() bool {
-	// Returns 'true' for clean, 'false' for dirty
-	if runFlags.Bool("override-dirty-workdir") {
-		fmt.Println("=> Respecting your wishes to override the dirty working directory and build anyway.")
-		return true
-	}
 
 	cleanWorkDirChecks := []bool{
-		getCommandExitCode("git", "diff-index --quiet HEAD --") == 0, // checks for modified files
-		getCommandOutput("git", "ls-files --others") == "",           // checks for untracked files
+		cli.GetCommandExitCode("git", "diff-index --quiet HEAD --") == 0, // checks for modified files
+		cli.GetCommandOutput("git", "ls-files --others") == "",           // checks for untracked files
 	}
 	for _, clean := range cleanWorkDirChecks {
 		if !clean {
@@ -50,21 +65,13 @@ func workingDirectoryIsClean() bool {
 }
 
 func makeBuild() {
-	// Builds the docker image and tags it with the image short-name (ie. without the registry path)
-	if repoConfig.ClusterName == "production" {
-		if !workingDirectoryIsClean() {
-			fmt.Println("=> Oh no! You have uncommited changes in the working tree. Please commit or stash before deploying to production.")
-			fmt.Println("=> If you're really, really sure, you can override this warning with the '--override-dirty-workdir' flag.")
-			os.Exit(1)
-		}
-	}
 
 	fmt.Println("=> Okay, let's start the build process!")
 	fmt.Printf("=> First, let's build the image with tag: %s\n\n", repoConfig.ImageFullPath)
 	time.Sleep(1 * time.Second)
 
 	// Run docker build
-	if exitCode := streamAndGetCommandExitCode(
+	if exitCode := cli.StreamAndGetCommandExitCode(
 		"docker",
 		fmt.Sprintf("build -t %s %s", repoConfig.ImageFullPath, repoConfig.PWD),
 	); exitCode != 0 {
@@ -72,7 +79,7 @@ func makeBuild() {
 	}
 }
 
-func runBuildTests() {
+func RunBuildTests(keepTestContainer bool) {
 	// Start container and run tests
 	tests := repoConfig.Tests
 	for _, testSet := range tests {
@@ -96,13 +103,10 @@ func runBuildTests() {
 				dockerRunCommand = dockerRunCommand + " " + testSet.DockerCommand
 			}
 
-			containerName, exitCode = streamAndGetCommandOutputAndExitCode("docker",
+			containerName, exitCode = cli.StreamAndGetCommandOutputAndExitCode("docker",
 				strings.Join([]string{"run", dockerRunCommand}, " "))
-			if runFlags.Bool("debug") {
-				fmt.Println(containerName)
-			}
 			if exitCode != 0 {
-				teardownTest(containerName, true)
+				teardownTest(containerName, true, keepTestContainer)
 			}
 		}
 
@@ -119,40 +123,40 @@ func runBuildTests() {
 			switch t := testSet.Type; t {
 			case "on-host", "host-only":
 				commandSplit := strings.SplitN(testCommand, " ", 2)
-				if exitCode := streamAndGetCommandExitCode(commandSplit[0], commandSplit[1]); exitCode != 0 {
-					teardownTest(containerName, true)
+				if exitCode := cli.StreamAndGetCommandExitCode(commandSplit[0], commandSplit[1]); exitCode != 0 {
+					teardownTest(containerName, true, keepTestContainer)
 					break
 				}
 			case "in-test-container":
-				if exitCode := streamAndGetCommandExitCode("docker", fmt.Sprintf("exec %s %s", containerName, testCommand)); exitCode != 0 {
-					teardownTest(containerName, true)
+				if exitCode := cli.StreamAndGetCommandExitCode("docker", fmt.Sprintf("exec %s %s", containerName, testCommand)); exitCode != 0 {
+					teardownTest(containerName, true, keepTestContainer)
 					break
 				}
 			case "in-external-container":
-				if exitCode := streamAndGetCommandExitCode("docker", fmt.Sprintf("run --rm --network container:%s %s %s", containerName, testCommandImage, testCommand)); exitCode != 0 {
-					teardownTest(containerName, true)
+				if exitCode := cli.StreamAndGetCommandExitCode("docker", fmt.Sprintf("run --rm --network container:%s %s %s", containerName, testCommandImage, testCommand)); exitCode != 0 {
+					teardownTest(containerName, true, keepTestContainer)
 					break
 				}
 			default:
 				fmt.Printf("=> Since you didn't specify where to run test %s, I'll run it in an external container (attached to the same network).\n", testCommand)
-				if exitCode := streamAndGetCommandExitCode("docker", fmt.Sprintf("run --rm --network container:%s %s %s", containerName, testCommandImage, testCommand)); exitCode != 0 {
-					teardownTest(containerName, true)
+				if exitCode := cli.StreamAndGetCommandExitCode("docker", fmt.Sprintf("run --rm --network container:%s %s %s", containerName, testCommandImage, testCommand)); exitCode != 0 {
+					teardownTest(containerName, true, keepTestContainer)
 				}
 			}
 		}
-		teardownTest(containerName, false)
+		teardownTest(containerName, false, keepTestContainer)
 	}
 }
 
-func teardownTest(containerName string, exit bool) {
+func teardownTest(containerName string, exit bool, keepTestContainer bool) {
 	if containerName != "" {
 		fmt.Println("=> Stopping test container.")
-		getCommandOutput("docker", fmt.Sprintf("stop %s", containerName))
-		if runFlags.Bool("keep-test-container") {
+		cli.GetCommandOutput("docker", fmt.Sprintf("stop %s", containerName))
+		if keepTestContainer {
 			fmt.Println("=> Leaving the test container without deleting, like you asked.\n")
 		} else {
 			fmt.Println("=> Removing test container.")
-			getCommandOutput("docker", fmt.Sprintf("rm %s", containerName))
+			cli.GetCommandOutput("docker", fmt.Sprintf("rm %s", containerName))
 		}
 	}
 	if exit {
@@ -162,15 +166,16 @@ func teardownTest(containerName string, exit bool) {
 
 func askPushDockerImage() int {
 	fmt.Print("=> Yay, all the tests passed! Would you like to push this to the remote now?\n=> Press 'y' to push, anything else to exit.\n>>> ") // TODO - make this pluggable
+	reader := bufio.NewReader(os.Stdin)
 	confirm, _ := reader.ReadString('\n')
 	if confirm != "y\n" && confirm != "Y" {
 		fmt.Println("=> Thanks for building, Bob!")
 		os.Exit(0)
 	}
-	return streamAndGetCommandExitCode("docker", fmt.Sprintf("push %s", repoConfig.ImageFullPath))
+	return cli.StreamAndGetCommandExitCode("docker", fmt.Sprintf("push %s", repoConfig.ImageFullPath))
 
 }
 
 func forcePushDockerImage() int {
-	return streamAndGetCommandExitCode("docker", fmt.Sprintf("push %s", repoConfig.ImageFullPath))
+	return cli.StreamAndGetCommandExitCode("docker", fmt.Sprintf("push %s", repoConfig.ImageFullPath))
 }

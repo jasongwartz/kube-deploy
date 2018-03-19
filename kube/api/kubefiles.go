@@ -1,4 +1,4 @@
-package main
+package kubeapi
 
 import (
 	"fmt"
@@ -7,12 +7,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 )
 
-type basicFields struct {
-	ApiVersion string `yaml:"apiVersion"`
-	Kind       string `yaml:"kind"`
-}
-
-func parseKubeFile(fileContents []byte) runtime.Object {
+func ParseKubeFile(fileContents []byte) runtime.Object {
 
 	decode := scheme.Codecs.UniversalDeserializer().Decode
 	obj, _, err := decode(fileContents, nil, nil)

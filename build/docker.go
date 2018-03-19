@@ -1,4 +1,4 @@
-package main
+package build
 
 import (
 	"encoding/json"
@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 	"text/tabwriter"
+
+	"github.com/mycujoo/kube-deploy/cli"
 )
 
 type gcloudDockerTag struct {
@@ -17,13 +19,13 @@ type gcloudDockerTag struct {
 	}
 }
 
-func dockerListTags() {
+func DockerListTags() {
 	if !strings.Contains(repoConfig.DockerRepository.RegistryRoot, "gcr.io") {
 		fmt.Println("=> Sorry, the 'list-tags' feature only works with Google Cloud Registry.")
 		os.Exit(1)
 	}
 
-	jsonTags := getCommandOutput("gcloud", fmt.Sprintf("container images list-tags --format=json eu.gcr.io/mycujoo-development/mycujoo-thumbs")) // %s", repoConfig.ImagePath))
+	jsonTags := cli.GetCommandOutput("gcloud", fmt.Sprintf("container images list-tags --format=json eu.gcr.io/mycujoo-development/mycujoo-thumbs")) // %s", repoConfig.ImagePath))
 	decodedTags := []gcloudDockerTag{}
 
 	if err := json.Unmarshal([]byte(jsonTags), &decodedTags); err != nil {
@@ -42,8 +44,8 @@ func dockerListTags() {
 	w.Flush()
 }
 
-func dockerImageExistsLocal() bool {
-	exitCode := getCommandExitCode("docker", fmt.Sprintf("inspect %s", repoConfig.ImageFullPath))
+func DockerImageExistsLocal() bool {
+	exitCode := cli.GetCommandExitCode("docker", fmt.Sprintf("inspect %s", repoConfig.ImageFullPath))
 
 	if exitCode != 0 {
 		return false
@@ -51,8 +53,8 @@ func dockerImageExistsLocal() bool {
 	return true
 }
 
-func dockerImageExistsRemote() bool {
-	exitCode := getCommandExitCode("docker", fmt.Sprintf("pull %s", repoConfig.ImageFullPath))
+func DockerImageExistsRemote() bool {
+	exitCode := cli.GetCommandExitCode("docker", fmt.Sprintf("pull %s", repoConfig.ImageFullPath))
 
 	if exitCode != 0 {
 		return false
@@ -60,7 +62,7 @@ func dockerImageExistsRemote() bool {
 	return true
 }
 
-func dockerAmLoggedIn() bool {
+func DockerAmLoggedIn() bool {
 
 	dockerAuthFile, err := ioutil.ReadFile(os.Getenv("HOME") + "/.docker/config.json")
 	if err != nil {

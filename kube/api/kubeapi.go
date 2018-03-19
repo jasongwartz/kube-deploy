@@ -1,4 +1,4 @@
-package main
+package kubeapi
 
 import (
 	"fmt"
@@ -14,10 +14,14 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/retry"
 	// Uncomment the following line to load the gcp plugin (only required to authenticate against GKE clusters).
+	// "k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
 
-func setupKubeAPI() *kubernetes.Clientset {
+var clientSet *kubernetes.Clientset
+var namespace string
+
+func Setup(namespaceParam string) *kubernetes.Clientset {
 
 	var kubeconfig string
 	var homeDir string
@@ -41,18 +45,20 @@ func setupKubeAPI() *kubernetes.Clientset {
 		panic(err.Error())
 	}
 
+	clientSet = clientset
+	namespace = namespaceParam
 	return clientset
 }
 
-func kubeAPIGetSingleDeployment(name string) *v1beta1.Deployment {
-	deployment, _ := repoConfig.KubeAPIClientSet.
-		ExtensionsV1beta1().Deployments(repoConfig.Namespace).
+func GetSingleDeployment(name string) *v1beta1.Deployment {
+	deployment, _ := clientSet.
+		ExtensionsV1beta1().Deployments(namespace).
 		Get(name, metav1.GetOptions{})
 	// Return even if nil
 	return deployment
 }
 
-func kubeAPIUpdateDeployment(name string, callback func(*v1beta1.Deployment)) *v1beta1.Deployment {
+func UpdateDeployment(name string, callback func(*v1beta1.Deployment)) *v1beta1.Deployment {
 
 	var deployment *v1beta1.Deployment
 
@@ -60,38 +66,35 @@ func kubeAPIUpdateDeployment(name string, callback func(*v1beta1.Deployment)) *v
 		// Retrieve the latest version of Deployment before attempting update
 		// RetryOnConflict uses exponential backoff to avoid exhausting the apiserver
 		// result, getErr := deploymentsClient.Get("demo-deployment", metav1.GetOptions{})
-		deployment = kubeAPIGetSingleDeployment(name)
+		deployment = GetSingleDeployment(name)
 		callback(deployment)
-		_, updateErr := repoConfig.KubeAPIClientSet.ExtensionsV1beta1().Deployments(repoConfig.Namespace).
+		_, updateErr := clientSet.ExtensionsV1beta1().Deployments(namespace).
 			Update(deployment)
 		return updateErr
 	})
 	if retryErr != nil {
 		panic(fmt.Errorf("Update failed: %v", retryErr))
 	}
+	fmt.Printf("=> Updated deployment %s.\n", deployment.Name)
 
-	if runFlags.Bool("debug") {
-		fmt.Printf("=> => Updated deployment %s.\n", deployment.Name)
-	}
 	return deployment
-
 }
 
-func kubeAPIAddDeploymentLabel(deployment *v1beta1.Deployment, key string, value string) {
+func AddDeploymentLabel(deployment *v1beta1.Deployment, key string, value string) {
 	existingLabels := deployment.GetLabels()
 	existingLabels[key] = value
 }
 
-func kubeAPIRemoveDeploymentLabel(deployment *v1beta1.Deployment, key string) {
+func RemoveDeploymentLabel(deployment *v1beta1.Deployment, key string) {
 	existingLabels := deployment.GetLabels()
 	delete(existingLabels, key)
 }
 
-func kubeAPIDeleteDeployment(deployment *v1beta1.Deployment) {
+func DeleteDeployment(deployment *v1beta1.Deployment) {
 	deletePolicy := metav1.DeletePropagationForeground
 
-	if err := repoConfig.KubeAPIClientSet.
-		ExtensionsV1beta1().Deployments(repoConfig.Namespace).
+	if err := clientSet.
+		ExtensionsV1beta1().Deployments(namespace).
 		Delete(deployment.Name, &metav1.DeleteOptions{
 			PropagationPolicy: &deletePolicy,
 		}); err != nil {
@@ -99,33 +102,33 @@ func kubeAPIDeleteDeployment(deployment *v1beta1.Deployment) {
 	}
 }
 
-func kubeAPIDeleteService(service *v1.Service) {
-	if err := repoConfig.KubeAPIClientSet.CoreV1().Services(repoConfig.Namespace).
+func DeleteService(service *v1.Service) {
+	if err := clientSet.CoreV1().Services(namespace).
 		Delete(service.Name, nil); err != nil {
 		panic(err.Error())
 	}
 }
 
-func kubeAPIDeleteSecret(secret *v1.Secret) {
-	if err := repoConfig.KubeAPIClientSet.CoreV1().Secrets(repoConfig.Namespace).
+func DeleteSecret(secret *v1.Secret) {
+	if err := clientSet.CoreV1().Secrets(namespace).
 		Delete(secret.Name, nil); err != nil {
 		panic(err.Error())
 	}
 }
 
-func kubeAPIDeleteIngress(ingress *v1beta1.Ingress) {
-	if err := repoConfig.KubeAPIClientSet.ExtensionsV1beta1().Ingresses(repoConfig.Namespace).
+func DeleteIngress(ingress *v1beta1.Ingress) {
+	if err := clientSet.ExtensionsV1beta1().Ingresses(namespace).
 		Delete(ingress.Name, nil); err != nil {
 		panic(err.Error())
 	}
 }
 
-func kubeAPIListDeployments(labelFilter map[string]string) *v1beta1.DeploymentList {
+func ListDeployments(labelFilter map[string]string) *v1beta1.DeploymentList {
 
 	label := labels.Set(labelFilter)
 
-	deployments, err := repoConfig.KubeAPIClientSet.
-		ExtensionsV1beta1().Deployments(repoConfig.Namespace).
+	deployments, err := clientSet.
+		ExtensionsV1beta1().Deployments(namespace).
 		List(metav1.ListOptions{LabelSelector: label.String()})
 
 	if err != nil {
