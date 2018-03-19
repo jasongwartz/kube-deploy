@@ -69,17 +69,17 @@ func kubeStartRollout() {
 	// Find the just-created deployment
 	thisDeployment := kubeapi.GetSingleDeployment(repoConfig.ReleaseName)
 	desiredPods := *thisDeployment.Spec.Replicas
-
-	// Add the 'kubedeploy-releasetime' label (which will force the deployment to recreate pods if it already existed)
-	thisDeployment.Spec.Template.Labels["kubedeploy-releasetime"] = strconv.FormatInt(rolloutStartTime.Unix(), 10)
-
-	// Quickly scale to only one pod
-	firstCanaryPods := int32(1)
-	fmt.Printf("=> Scaling to first canary point: %d pod(s)\n", firstCanaryPods)
-	thisDeployment.Spec.Replicas = &firstCanaryPods
+	firstCanaryPods := int32(1) // First canary point is one pod only
 
 	// Update with release time and firstCanaryPods replicas
-	thisDeployment = kubeapi.UpdateDeployment(thisDeployment)
+	thisDeployment = kubeapi.UpdateDeployment(thisDeployment.Name, func(deployment *v1beta1.Deployment) {
+		// Add the 'kubedeploy-releasetime' label (which will force the deployment to recreate pods if it already existed)
+		deployment.Spec.Template.Labels["kubedeploy-releasetime"] = strconv.FormatInt(rolloutStartTime.Unix(), 10)
+
+		// Quickly scale to only one pod
+		fmt.Printf("=> Scaling to first canary point: %d pod(s)\n", firstCanaryPods)
+		deployment.Spec.Replicas = &firstCanaryPods
+	})
 
 	// Make sure first pod gets started
 	cli.StreamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("rollout status --namespace=%s deployment/%s", repoConfig.Namespace, repoConfig.ReleaseName))
@@ -96,9 +96,9 @@ func kubeStartRollout() {
 		// Scale up to desired number of pods in new canary release
 		fmt.Printf("=> Scaling to next canary point: %d pod(s)\n=> This should give the new pods roughly 50%% of traffic (if the old deployment was the same size).\n", desiredPods)
 
-		thisDeployment = kubeapi.GetSingleDeployment(repoConfig.ReleaseName)
-		thisDeployment.Spec.Replicas = &desiredPods
-		thisDeployment = kubeapi.UpdateDeployment(thisDeployment)
+		thisDeployment = kubeapi.UpdateDeployment(repoConfig.ReleaseName, func(deployment *v1beta1.Deployment) {
+			deployment.Spec.Replicas = &desiredPods
+		})
 		cli.StreamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("rollout status --namespace=%s deployment/%s", repoConfig.Namespace, repoConfig.ReleaseName))
 
 		if !skipCanary {
@@ -112,8 +112,10 @@ func kubeStartRollout() {
 	// Scale down pods in old release
 	if mostRecentRelease.Name != "" {
 		fmt.Println("\n=> Scaling down old deployment, leaving only new deployment pods.")
-		mostRecentRelease.Spec.Replicas = new(int32) // new() returns default value, which is 0 for int32
-		mostRecentRelease = *kubeapi.UpdateDeployment(&mostRecentRelease)
+
+		mostRecentRelease = *kubeapi.UpdateDeployment(mostRecentRelease.Name, func(deployment *v1beta1.Deployment) {
+			deployment.Spec.Replicas = new(int32) // new() returns default value, which is 0 for int32
+		})
 		cli.StreamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("rollout status --namespace=%s deployment/%s", repoConfig.Namespace, mostRecentRelease.Name))
 
 		if !skipCanary {
@@ -128,16 +130,17 @@ func kubeStartRollout() {
 	thisDeployment = kubeapi.GetSingleDeployment(repoConfig.ReleaseName)
 	// Tag the new release with 'is-live'
 	fmt.Println("=> Tagging the new release with the tag 'kubedeploy-is-live'.")
-	kubeapi.AddDeploymentLabel(thisDeployment, "kubedeploy-is-live", "true")
-	thisDeployment = kubeapi.UpdateDeployment(thisDeployment)
+	thisDeployment = kubeapi.UpdateDeployment(thisDeployment.Name, func(deployment *v1beta1.Deployment) {
+		deployment.Labels["kubedeploy-is-live"] = "true"
+	})
 
 	// Tag older release with 'instant-rollback-target'
 	if mostRecentRelease.Name != "" {
 		fmt.Printf("=> Tagging release %s with tag 'instant-rollback-target'.\n=> You can rollback to this in one command with `kube-deploy rollback`.\n", mostRecentRelease.Name)
-		mostRecentRelease = *kubeapi.GetSingleDeployment(mostRecentRelease.Name)
-		mostRecentRelease.Labels["kubedeploy-rollback-target"] = "true"
-		delete(mostRecentRelease.Labels, "kubedeploy-is-live")
-		kubeapi.UpdateDeployment(&mostRecentRelease)
+		kubeapi.UpdateDeployment(mostRecentRelease.Name, func(deployment *v1beta1.Deployment) {
+			deployment.Labels["kubedeploy-rollback-target"] = "true"
+			delete(deployment.Labels, "kubedeploy-is-live")
+		})
 	} else {
 		fmt.Println("=> Since there are no previous deployments, no 'kubedeploy-rollback-target' will be assigned.")
 	}
@@ -162,10 +165,11 @@ func safeBailOut(thisDeployment *v1beta1.Deployment, mostRecentRelease *v1beta1.
 
 	if mostRecentRelease.Name != "" {
 		fmt.Printf("=> Scaling the previous release %s back up to %d pods.\n", mostRecentRelease.Name, pods)
-		mostRecentRelease.Spec.Replicas = pods
-		mostRecentRelease.Labels["kubedeploy-is-live"] = "true"
-		delete(mostRecentRelease.Labels, "kubedeploy-rollback-target")
-		kubeapi.UpdateDeployment(mostRecentRelease)
+		kubeapi.UpdateDeployment(mostRecentRelease.Name, func(deployment *v1beta1.Deployment) {
+			deployment.Spec.Replicas = pods
+			deployment.Labels["kubedeploy-is-live"] = "true"
+			delete(deployment.Labels, "kubedeploy-rollback-target")
+		})
 		cli.StreamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("rollout status --namespace=%s deployment/%s", repoConfig.Namespace, mostRecentRelease.Name))
 
 		fmt.Println("=> Deleting the deployment we created...")
@@ -193,8 +197,9 @@ func kubeRollingRestart() {
 	}
 
 	isLive := isLiveDeployments.Items[0]
-	isLive.Spec.Template.Labels["kubedeploy-last-rolling-restart"] = strconv.FormatInt(time.Now().Unix(), 10)
-	kubeapi.UpdateDeployment(&isLive)
+	kubeapi.UpdateDeployment(isLive.Name, func(deployment *v1beta1.Deployment) {
+		deployment.Spec.Template.Labels["kubedeploy-last-rolling-restart"] = strconv.FormatInt(time.Now().Unix(), 10)
+	})
 	cli.StreamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("rollout status --namespace=%s deployment/%s", repoConfig.Namespace, isLive.Name))
 
 	fmt.Printf("\n=> All pods have been recreated.\n\n")
@@ -226,9 +231,11 @@ func kubeInstantRollback() {
 	rollbackTarget := rollbackTargets.Items[0]
 	rollbackTarget.Spec.Replicas = replicas
 	fmt.Printf("=> Rolling back to %s, pod count %d.\n", rollbackTarget.Name, *replicas)
-	rollbackTarget.Labels["kubedeploy-is-live"] = "true"
-	delete(rollbackTarget.Labels, "kubedeploy-rollback-target")
-	kubeapi.UpdateDeployment(&rollbackTarget)
+
+	kubeapi.UpdateDeployment(rollbackTarget.Name, func(deployment *v1beta1.Deployment) {
+		deployment.Labels["kubedeploy-is-live"] = "true"
+		delete(deployment.Labels, "kubedeploy-rollback-target")
+	})
 	cli.StreamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("rollout status --namespace=%s deployment/%s", repoConfig.Namespace, rollbackTarget.Name))
 
 	if !runFlags.Bool("force") && !runFlags.Bool("no-canary") {
@@ -237,10 +244,12 @@ func kubeInstantRollback() {
 	}
 
 	// Scale old pods down to zero
-	isLive.Spec.Replicas = new(int32)
-	isLive.Labels["kubedeploy-rollback-target"] = "true"
-	delete(isLive.Labels, "kubedeploy-is-live")
-	kubeapi.UpdateDeployment(&isLive)
+	kubeapi.UpdateDeployment(isLive.Name, func(deployment *v1beta1.Deployment) {
+		deployment.Spec.Replicas = new(int32)
+		deployment.Labels["kubedeploy-rollback-target"] = "true"
+		delete(deployment.Labels, "kubedeploy-is-live")
+	})
+
 	fmt.Println("=> Wait for the old pods to scale down to 0.")
 	cli.StreamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("rollout status --namespace=%s deployment/%s", repoConfig.Namespace, rollbackTarget.Name))
 
@@ -252,8 +261,10 @@ func kubeScaleDeployment(replicas int32) {
 	if len(deployments.Items) == 1 {
 		fmt.Printf("=> Starting to scale to %d replica(s).\n", replicas)
 		liveDeployment := deployments.Items[0]
-		liveDeployment.Spec.Replicas = &replicas
-		kubeapi.UpdateDeployment(&liveDeployment)
+
+		kubeapi.UpdateDeployment(liveDeployment.Name, func(deployment *v1beta1.Deployment) {
+			deployment.Spec.Replicas = &replicas
+		})
 		cli.StreamAndGetCommandOutputAndExitCode("kubectl", fmt.Sprintf("rollout status --namespace=%s deployment/%s", repoConfig.Namespace, repoConfig.ReleaseName))
 		fmt.Printf("=> Finished scaling to %d replica(s).\n", replicas)
 	} else {
