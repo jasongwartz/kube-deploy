@@ -10,6 +10,8 @@ Welcome to kube-deploy, an opinionated but friendly deployment tool for Kubernet
 * Support for multiple clusters
 * Works for teams of any size
 
+Learn more about `kube-deploy` with [this video](https://youtu.be/PB5W30ScIL8?t=5m40s) from a recent meetup talk in Amsterdam.
+
 ## Commands 
 
 ### Context
